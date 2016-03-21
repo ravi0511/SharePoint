@@ -1,0 +1,141 @@
+<script type="text/javascript" src="../SiteAssets/jqueryplugin.js"></script>
+<script>
+$(document).ready(function()  { 
+	var context;
+	var web;
+	var fields;
+	var lists;
+	SP.SOD.executeFunc('sp.js', 'SP.ClientContext',alert('loaded'));
+	// $.fn.jqplugin = function(data) {
+    // var test = "Working";
+    // //return test;
+	// this.text(test);
+	// //$('#lblid').text('not');
+	// $.fn.jqplugin.defaults = {
+		// name:'',
+		// Age:'',
+		// Location:'',
+		// Single:''
+	// };
+	// var newdata = $.extend({},$.fn.jqplugin.defaults,data);
+	// alert(JSON.stringify(newdata));
+// }
+} );
+//****************************************************************************************//
+// JSOM code for creating content type
+//****************************************************************************************//
+function createContentType() {  
+		context = new SP.ClientContext.get_current();
+		web = context.get_web();
+		//context.set_requestTimeout(1000);
+        var hostWeb = context.get_web();  
+        var contentTypeCollection = hostWeb.get_contentTypes();  
+        //Get Document Content type by its Id. We will use Item Content Type as Base Content Type  
+        //to create a new Content Type.  
+        //Refer article for Ids of other Content Types.  
+        var contentType = contentTypeCollection.getById("0x01");  
+        //Creating new Content Type  
+        var newContentType = new SP.ContentTypeCreationInformation();  
+        newContentType.set_name('Employee');  
+        newContentType.set_group('Employee Details');  
+        newContentType.set_description('Content Type for Employee Details.');  
+        //Set Base Content Type  
+        newContentType.set_parentContentType(contentType);  
+        contentTypeCollection.add(newContentType);  
+        context.load(contentTypeCollection);  
+        context.executeQueryAsync(  
+            function () {  
+                alert('Content type created successfully on Host Web.');  
+            },  
+           function onContenttypeFailed(sender, args) {  
+               alert('Content type creation failed. Error: ' + args.get_message() + '\n' + args.get_stackTrace());  
+           });  
+     
+}  
+//****************************************************************************************//
+// JSOM code for creating site columns
+//****************************************************************************************//
+var addField = function () {
+   context = new SP.ClientContext.get_current();
+   web = context.get_web();
+   fields = web.get_fields();
+   var fieldSchema = '<Field Type="DateTime" \
+                             Name="ExpiryDate" \
+                             DisplayName="Expiry Date" \
+                             Format="DateOnly" \
+                             Required="TRUE" \
+                             Group="Contoso Columns" />';
+   fields.addFieldAsXml(fieldSchema, false, SP.AddFieldOptions.addFieldCheckDisplayName);
+   context.executeQueryAsync(onAddFieldSuccess, onAddFieldFail);
+}
+
+//****************************************************************************************//
+// JSOM code for creating List columns
+//****************************************************************************************//
+var addFieldinList = function () {
+   context = new SP.ClientContext.get_current();
+   web = context.get_web();
+   lists = web.get_lists().getByTitle("Tasks");
+   fields = lists.get_fields();
+   var fieldSchema = '<Field Type="DateTime" \
+                             Name="ExpiryDateList" \
+                             DisplayName="Expiry Date List" \
+                             Format="DateOnly" \
+                             Required="TRUE"/>';
+   fields.addFieldAsXml(fieldSchema, false, SP.AddFieldOptions.addFieldCheckDisplayName);
+   context.executeQueryAsync(onAddFieldSuccess, onAddFieldFail);
+}
+
+var onAddFieldSuccess = function () {
+   alert('Field created');
+}
+
+var onAddFieldFail = function () {
+   alert('Something went wrong');
+}
+
+//****************************************************************************************//
+// JSOM code for fetching attachments from list
+//****************************************************************************************//
+function getitems(){
+	var ctx = new SP.ClientContext.get_current();
+	var web =ctx.get_web();
+	var folderurl = web.getFolderByServerRelativeUrl('Lists/Tasks/Attachments/3');
+	this.attachmentFiles = folderurl.get_files();
+	ctx.load(attachmentFiles);
+	ctx.executeQueryAsync(Function.createDelegate(this, this.onSuccess), Function.createDelegate(this, this.onFailure)); 
+}
+
+function onSuccess(){
+	var counts = attachmentFiles.get_count();
+	for(var count = 0; count<counts; count++){
+		var name = attachmentFiles.itemAt(count).get_name();
+		alert(name);
+		//window.open(""+ _spPageContextInfo.webServerRelativeUrl +"/Lists/WF_Test/Attachments/3/"+ name +"", '_blank'); 
+	}
+	
+}
+
+
+function onFailure(){
+	alert('Failed');
+}
+
+function buttonclick(){
+	//createContentType();
+	var data = $('#lblid').jqplugin({
+		name:'Ravi',
+		Age:'24',
+		Location:'Bangalore'
+	});
+	// $.fn.jqplugin.newfn();
+}
+
+
+
+
+</script>
+<div id="maindiv">
+	<input type="button" onclick="buttonclick()" value="add"></input>
+	<div id="lblid"></div>
+</div>
