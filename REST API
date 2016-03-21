@@ -1,0 +1,255 @@
+<script type="text/jscript">
+var range = 0;
+$( document ).ready(function() {
+SP.SOD.executeFunc("sp.js", "SP.ClientContext", alert('loaded'), false);
+});
+function GetItemTypeForListName(name) {
+    return "SP.Data." + name.charAt(0).toUpperCase() + name.split(" ").join("").slice(1) + "ListItem";
+}
+function getitems()
+{
+	//var url = _spPageContextInfo.webAbsoluteUrl+"/_api/web/lists/getbytitle('Test List')/Items";
+	var url = _spPageContextInfo.webAbsoluteUrl+"/_api/web/lists";
+	//var url = _spPageContextInfo.webAbsoluteUrl+"/_api/web/folders";
+	
+	//****************************************************************************************//
+	// REST code for retriving !!
+	//****************************************************************************************//
+	var call = $.ajax({
+			url: url,
+			type: "GET",
+			headers: {
+			 "Accept": "application/json;odata=verbose",
+			 "X-RequestDigest": jQuery("#__REQUESTDIGEST").val()
+				//"IF-MATCH":"*"
+				
+			},
+			success:getitemsSuccess,
+			error: getitemsFail
+	});
+	call.done(function (data, textStatus, jqXHR) {
+				 
+				getitemsSuccess();
+			});
+	call.fail(function (jqXHR, textStatus, errorThrown) {
+		getitemsFail();
+	});
+	
+	
+	//****************************************************************************************//
+	// REST code for creating !!
+	//****************************************************************************************//
+	$.ajax({
+        url: _spPageContextInfo.webAbsoluteUrl+"/_api/web/lists/GetByTitle('Task')/Items",
+        type: "POST",
+        async: false,
+        //data: JSON.stringify({ '__metadata': { 'type': 'SP.Folder' }, 'ServerRelativeUrl': '/gco/Solutions/brandlibrary/Practice/Shared Documents/Ravi12345' }), // create folder 
+		//data: JSON.stringify({ '__metadata': { 'type': 'SP.List' },'AllowContentTypes': true, 'BaseTemplate': 100, 'ContentTypesEnabled': true, 'Description': 'My list description', 'Title': 'Test Sub Site'}), // create list
+		data: JSON.stringify({ '__metadata': { 'type': 'SP.Data.TaskListItem' }, 'Title': 'Test' }),  // create list item
+        headers: {
+            "accept": "application/json;odata=verbose",
+            "content-type": "application/json;odata=verbose",
+            "X-RequestDigest": $("#__REQUESTDIGEST").val(),
+
+        }
+    }).done(function (result) {
+        // cir_OpenUploadControl();
+        // FOLDERURI = result.d.ListItemAllFields.__deferred.uri;
+		alert('working');
+    })
+    .fail(function (error) {
+        //return false;
+		alert(error.statusText);
+    });
+	
+	
+	
+	
+}
+
+
+//****************************************************************************************//
+// REST code for adding attachments to list
+//****************************************************************************************//
+function openAttachmentDialog() {
+	var options = {
+		url: _spPageContextInfo.webAbsoluteUrl + '/_layouts/15/Attachfile.aspx?ListId=72a9fd0e-1b35-4731-bfc2-6f5055c452cf&ItemId=3',
+		title: 'Add Attachment',
+		width: 600,
+		height: 200,
+		dialogReturnValueCallback: retrieveAttachments
+	};
+	SP.UI.ModalDialog.showModalDialog(options);
+}
+
+function retrieveAttachments(result, response) {
+	if (result == SP.UI.DialogResult.OK) {
+		fetchExistingAttachments();
+	}
+}
+
+
+//****************************************************************************************//
+//REST code for fetching attachments from list
+//****************************************************************************************//
+function fetchExistingAttachments() {
+	var queryUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/GetByTitle('Tasks')/items(3)/AttachmentFiles";
+	$.ajax({
+		url: queryUrl,
+		headers: {
+			"Accept": "application/json; odata=verbose"
+		},
+		method: "GET",
+		success: onFetchAttachmentsSucceeded,
+		error: onFailure
+	});
+}
+
+function onFetchAttachmentsSucceeded(data) {
+	if(data){
+		$.each(data.d.results, function () {
+			alert(this.FileName)
+		});
+	}
+}
+
+function getitemsSuccess(data)
+{
+	//alert("success: " + JSON.stringify(data));
+	alert("Working");
+}
+function getitemsFail(){
+	alert("Failed");
+}
+
+function buttonclick(){
+	RestPostSearch();
+}
+//****************************************************************************************//
+//REST code for search functionality by GET query method
+//****************************************************************************************//
+function RestSearch(){
+	var text = $('#textid').val();
+	var queryUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/search/query?querytext='"+ text +"'&startrow="+ range +"&rowlimit=10";
+	$.ajax({
+		url: queryUrl,
+		headers: {
+			"Accept": "application/json; odata=verbose"
+		},
+		method: "GET",
+		success: searchsuccess,
+		error: getitemsFail
+	});
+}
+
+function searchsuccess(data){
+	var iterate = false;
+	if(data){
+		//alert('Working');
+		var result = [];
+		var temp = data.d.query.PrimaryQueryResult.RelevantResults.Table.Rows.results;
+		var resultcount = data.d.query.PrimaryQueryResult.RelevantResults.TotalRows;
+		if(resultcount > range){
+			range = range + 10;
+			iterate = true;
+		}
+		else{
+			iterate = false;
+		}
+		$.each(temp, function () {
+			$.each(this.Cells.results, function(){ 
+				if(this.Key == "Title"){
+					result.push(this.Value.toString());
+				}
+			});
+		});
+		//alert(result.length);
+		$.each(result, function(index,value){
+			$('#lblid').append('</br>');
+			$('#lblid').append('<span>'+ index +'</span>');
+			$('#lblid').append(' ');
+			$('#lblid').append('<span>'+ value +'</span>');
+		});
+	}
+	if(iterate){
+		RestSearch();
+	}
+}
+
+//****************************************************************************************//
+//REST code for search functionality by POST query method
+//****************************************************************************************//
+function RestPostSearch(){
+	var text = $('#textid').val();
+	var queryUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/search/postquery";
+	var searchPayload = {
+      'request': {
+         '__metadata' : {'type' : 'Microsoft.Office.Server.Search.REST.SearchRequest'},
+         'Querytext' : text,
+		'StartRow':range,
+
+		'RowLimit':10,
+
+		'SelectProperties': {
+
+		'results': ['Title','ContentSource','DisplayAuthor']
+
+		}
+      }  
+    };  
+	$.ajax({
+        url: queryUrl,
+        type: "POST",
+		data: JSON.stringify(searchPayload),  
+        headers: {
+            "accept": "application/json;odata=verbose",
+            "content-type": "application/json;odata=verbose",
+            "X-RequestDigest": $("#__REQUESTDIGEST").val(),
+        },
+		success: searchpostquerysuccess,
+		error: getitemsFail
+    });
+}
+
+function searchpostquerysuccess(data){
+	var iterate = false;
+	if(data){
+		//alert('Working');
+		var result = [];
+		var temp = data.d.postquery.PrimaryQueryResult.RelevantResults.Table.Rows.results;
+		var resultcount = data.d.postquery.PrimaryQueryResult.RelevantResults.TotalRows;
+		if(resultcount > range){
+			range = range + 10;
+			iterate = true;
+		}
+		else{
+			iterate = false;
+		}
+		$.each(temp, function () {
+			$.each(this.Cells.results, function(){ 
+				if(this.Key == "Title"){
+					result.push(this.Value.toString());
+				}
+			});
+		});
+		//alert(result.length);
+		$.each(result, function(index,value){
+			$('#lblid').append('</br>');
+			$('#lblid').append('<span>'+ index +'</span>');
+			$('#lblid').append(' ');
+			$('#lblid').append('<span>'+ value +'</span>');
+		});
+	}
+	if(iterate){
+		RestPostSearch();
+	}
+}
+
+</script>
+
+
+<div id="maindiv">
+	<input type="button" onclick="buttonclick()" value="add"></input>
+	<input type="text" id="textid"></input>
+	<div id="lblid"></div>
+</div>
