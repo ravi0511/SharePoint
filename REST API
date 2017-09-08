@@ -245,6 +245,24 @@ function searchpostquerysuccess(data){
 	}
 }
 
+//****************************************************************************************//
+//REST code to get choice values from choice columns.
+//****************************************************************************************//
+ $.ajax({
+        url: "host url"+"_api/web/lists/GetByTitle('List Name')/fields?$filter=EntityPropertyName eq 'Choice Field Name'",
+        type: "GET",
+        headers: {
+            "accept": "application/json;odata=verbose",
+        },
+        success: function (data) {
+            console.log(data.d.results[0].Choices.results);
+        },
+        error: function (error) {
+            alert(JSON.stringify(error));
+        }
+
+    });
+
 </script>
 
 
