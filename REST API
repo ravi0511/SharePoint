@@ -262,6 +262,101 @@ function searchpostquerysuccess(data){
         }
 
     });
+    
+    
+    /*=========================================================================
+	Description: Function to send email to the designated user.
+	Input Parameters: from, to, body, subject
+	Output: None
+	=========================================================================*/
+    var sendEmail = function (from, to, body, subject) {
+        try {
+            getFormDigest();
+            var urlTemplate = _spPageContextInfo.webAbsoluteUrl + "/_api/SP.Utilities.Utility.SendEmail";
+            $.ajax({
+                contentType: 'application/json',
+                url: urlTemplate,
+                type: "POST",
+                async: false,
+                data: JSON.stringify({
+                    'properties': {
+                        '__metadata': { 'type': 'SP.Utilities.EmailProperties' },
+                        'From': from,
+                        'To': { 'results': [to] },
+                        'Body': body,
+                        'Subject': subject
+                    }
+                }
+                ),
+                headers: {
+                    "Accept": "application/json;odata=verbose",
+                    "content-type": "application/json;odata=verbose",
+                    "X-RequestDigest": formDigest
+                },
+
+                //function name is not mentioned since it is s success & error method
+                success: function (data) {
+                    ECM.Common.checkAndCloseWaitDialog();
+                    alert("Your Message has been sent successfully");
+                    
+                },
+                error: function (err) {
+                    ECM.Common.showErrorMessage("Error in sending Email" + JSON.stringify(err));
+                }
+            });
+        }
+        catch (e) {
+            ECM.Common.showErrorMessage("Error in sending Email" + e.message);
+        }
+        finally {
+            var configData = configDataCol[webpartId];
+            $('#txtSubject,#txtComments').val("");
+            if ($('#txtComments').val().length == 0) {
+                $('#btnSubmit').attr("disabled", true);
+                $("#btnSubmit").addClass("disable");
+            }
+            else {
+                $("#btnSubmit").attr("disabled", false);
+                $("#btnSubmit").removeClass("disable");
+            }
+            $('#check_anon').attr('checked', false);
+            $('#txtSubject').val(configData.DefaultSubjectLine);
+            $('#Subject_val').text('');
+            $('#Subject_val').show();
+            $("#error").html('');
+            $('#emailSuccess').html('');
+            $('#Subject_val').hide();
+        }
+    };
+
+	/*=========================================================================
+	Description: Function to create the digest value for sending mail.
+	Input Parameters: none
+	Output: None
+	=========================================================================*/
+    var getFormDigest = function () {
+        try {
+            $.ajax({
+                url: _spPageContextInfo.webAbsoluteUrl + "/_api/contextinfo",
+                type: "POST",
+                async: false,
+                headers: {
+                    "accept": "application/json;odata=verbose",
+                    "contentType": "text/xml"
+                },
+                //function name is not mentioned since it is s success & error method
+                success: function (data) {
+                    formDigest = data.d.GetContextWebInformation.FormDigestValue;
+                },
+                error: function (err) {
+                    $('#error').html("Error in form digest" + JSON.stringify(err));
+                }
+            });
+        }
+        catch (e) {
+            $("#error").html("Error in form digest" + e.message);
+        }
+    };
 
 </script>
 
