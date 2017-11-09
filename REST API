@@ -1,4 +1,17 @@
 <script type="text/jscript">
+
+**************************************
+var Onboarding = Onboarding || {};
+Onboarding.Functions = Onboarding.Functions || {};
+
+(function () {
+
+}())
+
+*************************************
+
+
+
 var range = 0;
 $( document ).ready(function() {
 SP.SOD.executeFunc("sp.js", "SP.ClientContext", alert('loaded'), false);
