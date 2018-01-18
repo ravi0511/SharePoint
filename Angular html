@@ -1,0 +1,63 @@
+<script src="/it/verifyit/TA/SiteAssets/Scripts/Constants.js" type="text/javascript"></script>
+<link rel="stylesheet" type="text/css" href="/it/verifyit/TA/SiteAssets/CSS/bootstrap.css">
+<link rel="stylesheet" type="text/css" href="/it/verifyit/TA/SiteAssets/css/SearchPage.css" />
+<script type="text/javascript" src="/it/verifyit/TA/SiteAssets/Scripts/Angular/angular.min.js"></script>
+<script type="text/javascript" src="/it/verifyit/TA/SiteAssets/Scripts/Angular/angular-filter.min.js"></script>
+<script type="text/javascript" src="/it/verifyit/TA/SiteAssets/Scripts/Angular/ui-bootstrap-tpls-0.14.0.min.js"></script>
+<script type="text/javascript" src="/it/verifyit/TA/SiteAssets/Scripts/Angular/dirPagination.min.js"></script>
+<script type="text/javascript" src="/it/verifyit/TA/SiteAssets/Scripts/Common.js"></script>
+<script type="text/javascript" src="/it/verifyit/TA/SiteAssets/Scripts/SearchPage.js"></script>
+<img alt="Therapeutic Banner" id="banner" src="/it/verifyit/TA/Images1/Therapeutic_Banner.png" />
+<br/>
+<div ng-app="SearchPageApp">
+	<div ng-controller="SearchPageController">
+		<div class="top_banner">
+			<label id="ProjName">Subject Matter Expert Directory Master Search</label>			
+		</div>
+		<div class="divMargin">Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua</div>
+		<div class="divMargin">
+			<span>Find an SME Area using the search box, filter your results by selecting the relevant Areas</span>
+		</div>
+		<input type="text" ng-model="search.SMEAreas" class="search-field" placeholder="Search for SME Areas">
+		<div class="divMargin filterDiv">
+			<span class="filterspan">Select to filter your search results</span>
+			<br>
+			<input type="button" class="filterValues" value="All" ng-click="activateBTO('')" ng-class="{'active':activeLetter==''}">	
+			<input type="button" class="filterValues" ng-repeat="BTO in columnValues | unique:'value'" ng-value="BTO.value" ng-click="activateBTO(BTO.value)" ng-class="{'active':BTO.value==activeLetter}">
+		</div>	
+		<div class="divMarginBorder">
+			<span class="font">Search Results</span>
+		</div>
+		<div id="contentDiv" ng-show="showMainContent" class="divMargin">
+			<table class="table table-striped">
+			<thead>
+				 <tr>
+				 <th class="headerColor"><a href="#" ng-click="sortBy('Title')">
+				 Job Title <span class="sortorder" ng-show="propertyName === 'Title'" ng-class="{reverse: reverse}"></span>
+				 </th>				 
+				 <th class="headerColor"><a href="#" ng-click="sortBy('TeamMember.Title')">
+				 Team Member <span class="sortorder" ng-show="propertyName === 'TeamMember.Title'" ng-class="{reverse: reverse}"></span>
+				 </th>
+				 <th class="headerColor"><a href="#" ng-click="sortBy('Department')">
+				 Department<span class="sortorder" ng-show="propertyName === 'Department'" ng-class="{reverse: reverse}"></span>
+				 </th>
+				 <th class="headerColor"><a href="#" ng-click="sortBy('SMEAreas')">
+				 SME Areas<span class="sortorder" ng-show="propertyName === 'SMEAreas'" ng-class="{reverse: reverse}"></span>
+				 </th>
+				 </tr>
+			</thead>
+			<tbody>			
+				 <tr ng-table="byStatusTable" dir-paginate="searchData in (filteredProjDetails = (searchData | filter:search | filter:exactSearch:true | statustypefilter:'SMEAreas':isEnable | BTOFilter : activeLetter | orderBy:propertyName:reverse)) | itemsPerPage:pageSize" current-page="currentPage">
+					<td>{{ searchData.Title }}</td>
+					<td><a ng-click="dispButtonClick(searchData.ID, searchData.SiteURL)" href="#">{{ searchData.TeamMember.Title }}</a></td>	
+					<td>{{ searchData.Department }}</td>
+					<td>{{ searchData.SMEAreas }}</td>
+                </tr>	 
+			 </tbody>
+			</table>
+		</div>
+		<div ng-show="showMainContent" class="range-label">Showing {{ pageStart() }} - {{ pageEnd() }} of {{ totalCount() }} results.</div>
+		<dir-pagination-controls ng-show="showMainContent" max-size="5" direction-links="true" boundary-links="true" class="EPMO_pagination"></dir-pagination-controls>
+		<div class="nocontent" ng-show="noEpmoProjects">{{noEpmoProjectsMessage}}</div>
+	</div>
+</div>
