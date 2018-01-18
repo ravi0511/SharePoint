@@ -1,0 +1,663 @@
+/*
+    File Name: SearchPage.js
+    File Description: Script to create a search page based on the search configuration list.
+    Author : Cognizant Technology Solutions Ltd.
+    Created on : 08-Jan-2018
+*/
+"use strict";
+(function () {
+
+    angular.module('SearchPageApp', ['ui.bootstrap','angularUtils.directives.dirPagination', 'angular.filter']);
+	
+	//AngularJS controller for home page
+    angular.module('SearchPageApp').controller('SearchPageController',
+		function ($scope, $http, $q) {
+			showWaitScreen();
+            $scope.configList = SEARCHCONFIGURATION.LISTNAME;
+            $scope.configQueries = {
+                OrderBy: "",
+				Select: ""+ SEARCHCONFIGURATION.FIELDS.ID +","+ SEARCHCONFIGURATION.FIELDS.TITLE +","+ SEARCHCONFIGURATION.FIELDS.EXPAND +","+ SEARCHCONFIGURATION.FIELDS.SELECT +","+ SEARCHCONFIGURATION.FIELDS.SITEURL +"",
+				Top: "",
+				Filter: "",
+				Expand: ""
+            };
+            $scope.configData;
+            $scope.flag = 0;
+			$scope.columnValues = [];
+
+
+
+			$scope.showMainContent = false;
+			$scope.searchData = [];
+			$scope.filteredProjDetails = $scope.searchData;
+			$scope.noEpmoProjectsMessage = NODATATODISPLAY;
+			$scope.activeLetter = '';
+			$scope.currentPage = 1;
+		    $scope.pageSize = 30;
+			
+			$scope.orderByField = SEARCHCONFIGURATION.FIELDS.TITLE;
+			$scope.reverseSort = false;
+				
+			//Function to sort the table
+		    $scope.sortBy = function (propertyName) {
+		        $scope.reverse = ($scope.propertyName === propertyName) ? !$scope.reverse : false;
+		        $scope.propertyName = propertyName;
+		    };
+			 
+						
+			//Function to filter the projects based on the BTO that is clicked
+		    $scope.activateBTO = function (btoValue) {		        
+		        $scope.activeLetter = btoValue;
+			}
+
+			//Function to display the total contacts count
+		    $scope.totalCount = function () {
+		        return $scope.searchData.length;
+		    }
+
+		    //Function to display the start number for each page
+		    $scope.pageStart = function () {
+		        var returnVal = 0;
+		        if ($scope.totalCount() > 0) {
+		            returnVal = ($scope.currentPage * $scope.pageSize) - $scope.pageSize + 1;
+		        }
+		        return returnVal;
+		    }
+			
+			//Function to display the end number for each page
+		    $scope.pageEnd = function () {
+		        var returnVal = 0;
+		        if ($scope.totalCount() > 0) {
+		            if (($scope.currentPage * $scope.pageSize) > $scope.totalCount()) {
+		                returnVal = $scope.totalCount();
+		            } else {
+		                returnVal = $scope.currentPage * $scope.pageSize;
+		            }
+		        }
+		        return returnVal;
+		    }
+				
+			
+			// function to display modal window by clicking on user name
+			$scope.dispButtonClick = function(itemID, siteURL){
+				try {
+					var urlValue = siteURL + "/Lists/Team%20Members/DispForm.aspx?ID="+ itemID +"";
+					var options = {
+						url: urlValue,
+						title: 'Team Members Details',
+						allowMaximize: false,
+						showClose: true,
+						autoSize: true,
+						dialogReturnValueCallback: modalWindowDialogCallback
+					};
+					var dialogSP = SP.UI.ModalDialog.showModalDialog(options);
+				} catch (error) {
+					showErrorMessage(error.message);
+				}
+			}
+
+			// Call back function of the modal window
+			var modalWindowDialogCallback = function(response){
+				try {
+					if(response == 1){
+						$scope.searchData = [];
+                        $.each($scope.configData,function(index,value){
+                            $scope.listName = value.Title;
+                            $scope.Queries = {
+                                OrderBy: "",
+                                Select: typeof(value.Select) == "undefined" ? "" : value.Select,
+                                Top: "3000",
+                                Filter: "",
+                                Expand: typeof(value.Expand) == "undefined" ? "" : value.Expand
+                            };
+                            $scope.siteURL = value.SiteURL;
+                            getProjectDetails(value.SiteURL);
+                            $scope.flag = index;
+                        });
+					}
+				} catch (error) {
+					showErrorMessage(error.message);
+				}
+			}
+			
+			//Function to check and hide the loading image if all requests are completed
+		    var loadComplete = function ($scope) {
+		        try {
+		                $scope.showMainContent = true;
+		        } catch (error) {
+		            handleError($scope, error.message);
+		        }
+		    }
+			
+			//Function to handle the error, log it to SharePoint ULS logs and display to user
+		    var handleError = function ($scope, error) {
+		        showErrorMessage(error.message);
+		    }
+			
+			//Function to build the query url
+		    var buildUrl = function (listName, queryObj, siteURL) {
+		        var url = String.format("{0}/_api/Web/Lists/GetByTitle('{1}')/Items?", siteURL == "" ? _spPageContextInfo.webAbsoluteUrl : siteURL, listName);
+		        if (queryObj) {
+		            if (queryObj.OrderBy) {
+		                url += String.format("$orderby={0}", queryObj.OrderBy);
+		            }
+		            if (queryObj.Select) {
+		                url += String.format("&$select={0}", queryObj.Select);
+		            }
+		            if (queryObj.Expand) {
+		                url += String.format("&$expand={0}", queryObj.Expand);
+		            }
+		            if (queryObj.Filter) {
+		                url += String.format("&$filter={0}", queryObj.Filter);
+		            }
+		            if (queryObj.Top) {
+		                url += String.format("&$top={0}", queryObj.Top);
+		            }
+		        }
+		        console.log(url);
+		        return url;
+		    }
+			
+			//Function executed on page load
+			var pageLoad = function () {
+				try {
+                    getConfigurationDetails();				
+				} catch (error) {
+					handleError($scope, error.message);
+				}
+            }
+            
+            var getConfigurationDetails = function(){
+		        var request = {
+                    method: 'GET',
+                    url: buildUrl($scope.configList, $scope.configQueries, ""),
+                    headers: {
+                        "accept": "application/json;odata=verbose",
+                    }
+                }
+
+		        var success = function (response) {
+		            if (response && response.data && response.data.d && response.data.d.results) {
+						var result = response.data.d.results;
+                        $scope.configData = response.data.d.results;
+                        console.log($scope.configData);
+                        $.each($scope.configData,function(index,value){
+                            $scope.listName = value.Title;
+                            $scope.Queries = {
+                                OrderBy: "",
+                                Select: typeof(value.Select) == "undefined" ? "" : value.Select,
+                                Top: "3000",
+                                Filter: "",
+                                Expand: typeof(value.Expand) == "undefined" ? "" : value.Expand
+                            };
+                            $scope.siteURL = value.SiteURL;
+                            getProjectDetails(value.SiteURL);
+                            $scope.flag = index;
+                        });
+		            }
+		        };
+
+		        var error = function (error) {
+		            handleError($scope, JSON.stringify(error));
+		        };
+
+		        // Get all the items
+		        getAllItems(request).then(success, error);
+                    
+            };
+			
+			//Function to get all projects from Project Details list
+		    var getProjectDetails = function (siteURL) {
+		        var request = {
+		            method: 'GET',
+		            url: buildUrl($scope.listName, $scope.Queries, $scope.siteURL),
+		            headers: {
+		                "accept": "application/json;odata=verbose",
+		            }
+		        };
+
+		        var success = function (response, siteURL) {
+		            if (response && response.data && response.data.d && response.data.d.results) {
+						var result = response.data.d.results;
+                        if($scope.flag == 0){
+							if(response.data.d.results.length != 0){
+								$.each(response.data.d.results, function(index,value){
+									value.SiteURL = siteURL;
+								})
+							}
+							$scope.searchData = response.data.d.results.concat($scope.searchData);
+							if($scope.searchData.length == 0){
+								$scope.noEpmoProjects = true;
+							}
+							else{
+
+								$.each($scope.searchData, function (i, v) {
+									$scope.columnValues.push({'value':v.SMEAreas});
+								});
+
+								$scope.searchData.sort(function(a,b) {return (a.SMEAreas > b.SMEAreas) ? 1 : ((b.SMEAreas > a.SMEAreas) ? -1 : 0);} ); 
+								$scope.showMainContent = true;
+
+							}
+
+							closeWaitDialog();
+                        }
+                        else{
+							if(response.data.d.results.length != 0){
+								$.each(response.data.d.results, function(index,value){
+									value.SiteURL = siteURL;
+								})
+							}
+                            $scope.searchData = response.data.d.results.concat($scope.searchData);
+                            console.log($scope.searchData);
+                            $scope.flag = $scope.flag - 1;
+                        }
+					}
+					else{
+						if($scope.searchData.length == 0){
+							$scope.noEpmoProjects = true;
+						}
+						else{
+							$scope.showMainContent = true;
+						}
+					}
+		        };
+
+		        var error = function (error) {
+		            handleError($scope, JSON.stringify(error));
+		        };
+
+		        // Get all the items
+				// getAllItems(request).then(success, error);
+				getAllItems(request).then(function(s){
+					success(s,siteURL);
+				}, error); 
+		    };
+						
+			//Recursively get all the items in a list
+		    var getAllItems = function (request, results, deferred) {
+		        //The first time through, these three variables won't exist, so create them.
+		        var deferred = deferred || $q.defer();
+		        var results = results || [];
+		        results.data = results.data || [];
+
+		        //Make the call to the REST endpoint using Angular's $http
+		        $http(request).then(function (response) {
+		            //The first time through, we don't have any data, so create the data object with the results
+		            if (!results.data.d) {
+		                results.data = response.data;
+		            } else {
+		                //If already exists from previous call, concatenate this set onto the existing array
+		                results.data.d.results = results.data.d.results.concat(response.data.d.results);
+		            }
+
+		            //If there is more data to fetch, there will be a URL in the __next object
+		            if (response.data.d.__next) {
+		                //Change the url to the value of __next and pass in the current results and the deferred object
+		                request.url = response.data.d.__next;
+		                //Call this function again (recursively).
+		                getAllItems(request, results, deferred);
+		            } else {
+		                //No value for __next, Resolve the promise with the results.
+		                deferred.resolve(results);
+		            }
+		        }, function (response) {
+		            deferred.reject(response.data);
+		        });
+
+		        // Return the deferred object's promise
+		        return deferred.promise;
+			};
+
+
+			//Invoke the page load function
+		    pageLoad();
+	});	
+	
+	//AngularJS filter for the BTO filter
+    angular.module('SearchPageApp').filter('BTOFilter', function () {
+        return function (items, btoValue) {
+            var filtered = [];
+            var letterMatch = new RegExp(btoValue, 'i');
+            for (var i = 0; i < items.length; i++) {
+                var item = items[i];                
+				if (letterMatch.test(item.SMEAreas)) {
+                    filtered.push(item);
+                }
+            }
+            return filtered;
+        };
+    });
+	
+	//AngularJS filter for the BTO filter
+    angular.module('SearchPageApp').filter('statustypefilter', function () {
+        return function (input, filter, isEnable) {			
+            var filtered = [];
+			if(!isEnable){
+				filtered = $.grep(input, function (a) { 
+					return a[filter] != 'Closed';
+				});	
+			}
+			else{
+				filtered = input;
+			}
+            return filtered;
+        };
+    });
+			
+})();
+
+
+
+
+
+
+**************************************************************************************************
+
+Mamatha script
+
+
+CONTROLLER
+ 
+angular.module("tagApp")
+                                .controller("projectExceutionCtrl", ["$scope","$window","projectExecutionService", "$routeParams","$location","userService",
+                                 function ($scope,$window, projectExecutionService, $routeParams,$location,userService) {
+ 
+                                  $scope.projectID = $routeParams.Id;
+ 
+Getting items from a list—for dropdowns etc
+ 
+                                   $scope.brands="";
+                                   projectExecutionService.getListItems("Brands")
+                                .then(function (response) {               
+                                                                console.log("Brands"  +  response.d.results);
+                                                                $scope.brands = response.d.results;
+                                });
+ 
+People picker
+ 
+$scope.executionCommunication = function()
+                                                {
+                                                                //alert('stk');
+                                                                $scope.executionComm =[];
+                                                               $scope.executionCommIds = [];
+                                                if($('#peoplePicker_executionComm_TopSpan_HiddenInput').val() != "[]")
+                                                {
+                                                                var executionCommvalues = JSON.parse($('#peoplePicker_executionComm_TopSpan_HiddenInput').val());
+                                                                angular.element('.eSignOffMandatorySupport').removeClass('error');
+                                                                if(executionCommvalues.length >0)
+                                                                {
+                                                                               
+                                                                                angular.forEach(executionCommvalues,function(value,key){
+                                                                                               
+                                                                                                $scope.executionComm.push(executionCommvalues[key].Key);
+                                                                                                userService.getUserId(executionCommvalues[key].Key)
+                                                                                                .then(function(response){
+                                                                                                                //$scope.stakehoderIds.push(response.d.results)
+                                                                                                                //console.log("User Profile " + JSON.stringify(response.d.Id));
+                                                                                                                  $scope.executionCommIds.push(response.d.Id);
+                                                                                                });
+                                                                                               
+                                                                                                //https://nestle.sharepoint.com/teams/OnePointDevelopmentEnvironment/_api/web/siteusers(@v)?@v=%27i:0%23.f|membership|veera.ganesh@us.nestle.com%27
+                                                                                                //alert("Received UserId" + data.d.Id);
+                                                                                });
+                                                                                console.log("Support " + $scope.executionComm);
+                                                                                //console.log("user Ids " + $scope.executionCommIds);
+                                                                                //console.log(encodeURIComponent(stakeHoldersvalues[0].Key))
+                                                                }
+ 
+                                                }
+                                                else {
+                                                               angular.element('.eSignOffMandatorySupport').addClass('error');
+                                                }
+                                                }
+ 
+ 
+Save to master list on save button click
+ 
+$scope.save = function ($event) {
+$scope.projectStatus="On Track";
+$scope.executionCommUserIDs = {"results" :  $scope.executionCommIds};
+var projectExecution = "";
+                                                projectExecution= {
+                                                                Brand                                    :$scope.executionBrand,
+                                                                projectId                              :$routeParams.Id,
+                                                                Risk                                                       :$scope.executionRisk,
+                                                                SAPRM                                                 :$scope.SAPRM,
+                                                                impact                                                  :$scope.impact,
+                                                                Version                                                :$scope.Version,
+                                                                GeneralRecipe                  :$scope.GeneralRecipe,
+                                                                SiteRecipe                                           :$scope.SiteRecipe,
+                                                                AdditionalRecipe              :$scope.AdditionalRecipe,
+                                                                GlobalCode                                        :$scope.GlobalCode,
+                                                                FoodStuffPlatform          :$scope.FoodStuffPlatform,
+                                                                ShelfLife                                              :$scope.ShelfLife,
+                                                                NHW                                                                     :$scope.NHW,
+                                                                Dietary                                                 :$scope.Dietary,
+                                                                KSK                                                                        :$scope.KSK,
+                                                                RiskComments                  :$scope.RiskComments,
+                                                                ProjectStatus                     :$scope.projectStatus,
+                                                                marketSupply                    :$scope.marketSupply,
+                                                                Inexus                                                  :$scope.Inexus,
+                                                                CostSavings                                        :$scope.CostSavings,
+                                                                Category                                              :$scope.Category,
+                                                                executionCommId                           :$scope.executionCommUserIDs
+ 
+                                                }
+                                               
+                                               
+ 
+                                               
+                                                //console.log("tagManager --->"+ appGlobal.esignOff);
+                                                //console.log(Json.stringify(projectRequst));
+                                                projectExecutionService.updateExecution(projectExecution)
+                                                .then(function(response){
+                                                                console.log(response);
+                                                                //alert("saving");
+                                                                //$event.prevenDefault();
+                                                                $location.path("/projectStatus");                                                            
+                                                });
+ 
+ 
+ 
+HTML
+ 
+ 
+<div class="tag-container borderTop container" ng-controller="projectExceutionCtrl">
+                <section class="containerSection">
+                <header class="newProReqHeader">
+                                                <p class="headerTxt">Project Execution</p>
+                                                <p class="mandatoryTxt">* Mandatory data fields</p>
+                                </header>
+                                <div class="clearFix"></div>
+                                <div class="formContainer">
+                                                <div class="formCol col-sm-4">
+                                                                                <span>Brands Impacted*</span><br>
+                                                                                <select data-ng-model="executionBrand">
+                                                                                                <option class="Slct">Select a Brand</option>
+                                                                                                <option  data-ng-repeat="item in brands" value="{{item.Title}}">{{item.Title}}</option>
+                                                                                </select>                            
+                               </div>                                  
+<div class="clearFix"></div>
+                                                <div class="formCol col-sm-4 notificationTxt">
+                                                                                <span>Add persons to initiate notifications on project details and status (Communication)</span><br>
+                                                                                <!--<textarea class="projectExecTxtArea" placeholder="Enter Email address"></textarea>-->
+                                                                                <div id="sr-header" class="eSignOffMandatorySupport" data-ng-controller="peopleCtrlr as vm" data-ng-cloak>
+                                                                                <div id="executionComm" data-ng-disabled="false" ui-people ng-model="vm.data.su" pp-is-multiuser="{{true}}" pp-width="310px" pp-account-type="User,DL,SecGroup,SPGroup" ng-change="executionCommunication()"></div>
+                                                                </div>
+                                                                <input type="hidden" data-ng-model="executionCommIds"  />
+                                                </div>
+<button class="btn submit" ng-click="save($event)">Submit</button><input type="hidden" ng-model="projectStatus"></input>
+</section>
+</div>
+ 
+ 
+SERVICE
+ 
+ 
+angular.module("tagApp")
+                .factory("projectExecutionService",["baseSvc",function(baseService){
+                                var listEndPoint = '/_api/web/lists';
+                                var getUserProfile = function(userid){
+                                                //var siteUri = _spPageContextInfo.webAbsoluteUrl;
+                                                console.log("service calling-->" + userid);
+                                                var query = "/_api/web/getuserbyid(" + userid + ")";
+                                                return baseService.getRequest(query);
+ 
+                                };
+ 
+var getListItems = function(listName){
+                                               
+                                                var query = listEndPoint + "/GetByTitle('"+listName+"')/Items?$select=Title,ID";
+                                                return baseService.getRequest(query);
+                                };
+ 
+ 
+var update = function (projRequestUpdate){
+                                                var data = {
+                                                                __metadata: { 'type': 'SP.Data.Project_x0020_DetailsListItem' },
+                                                                'Requestor'                                                                                         :                 projRequestUpdate.requestorName,
+                                                                'Date_x0020_of_x0020_Request'                             :                projRequestUpdate.requestDate,
+                                                                'Originating_x0020_Group'                                          :                 projRequestUpdate.orgGroups,
+                                                                'Identification'                                                                   :   projRequestUpdate.identification,                                                               
+                                                                'Title'                                                                                                                     :                projRequestUpdate.projTitle,                                                    
+                                                                'Project_x0020_Type'                                                    :               projRequestUpdate.projType,
+                                                                //'ProducingCategory'                                                                   :                projRequestUpdate.producingCat,
+                                                                //'ProducingSubCategory'                                                            :                projRequestUpdate.prodSubCategry,
+                                                                //'Producing_x0020_Facility'                                       :               projRequestUpdate.prdFaclty,
+                                                                'Scope'                                                                                                                  :                projRequestUpdate.scope,
+                                                                'Expected_x0020_Deliverables'                 :               projRequestUpdate.expDelverables,
+                                                                'IPA_x0020_Rank'                                                                            :                projRequestUpdate.ipaRank,                                     
+                                                                'Requested_x0020_Completion_x0020'  :               projRequestUpdate.reqCompDate,
+                                                                'Stakeholders_x0020_Name_x0028_s_Id':   projRequestUpdate.stakeHolders,
+                                                                'Are_x0020_Stakeholders_x0020_Ali'  :  projRequestUpdate.stakeholdralign,
+                                                                'TAG_x0020_ManagerId'                                                              :                 projRequestUpdate.tagmgrs
+                                                };
+                                                var url = listEndPoint + "/GetByTitle('Project Details')/GetItemById("+projRequestUpdate.projectID+")"; --For Update
+                                                var url = listEndPoint + "/GetByTitle('Project Details')/Items"; --For new item
+                                                return baseService.updateRequest(data,url);
+                                };
+ 
+return{
+                                                getUserProfile:getUserProfile,
+                                                getListItems:getListItems,                                           
+                                                getAll:getAll,
+                                                cascadProduCat:cascadProduCat,
+                                                cascadProdFacilty:cascadProdFacilty,
+                                                getCategoriesData: getCategoriesData,
+                                                addNew:addNew,
+                                                getById:getById,
+                                                update:update,
+                                                remove:remove,
+                                                getManagerRoll:getManagerRoll,
+                                                getResourceLead:getResourceLead,
+                                                getManagerRollNew:getManagerRollNew,
+                                                getLoginUser:getLoginUser,
+                                                updateStatus:updateStatus,
+                                                updateTagReview:updateTagReview,
+                                                updateProdCategories: updateProdCategories,
+                                                addProdCategories: addProdCategories,
+                                                updateExecution:updateExecution
+                                                //getCompleted:getCompleted,
+                                                //getActive:getActive
+                               
+                                };
+                }]);
+ 
+ 
+We have a difference service file in which all GET,POST,PATCH from rest api are written.. this can be within the service itself.. but we have given it lyk this so ders no need of it in each function
+ 
+angular.module("tagApp")
+        .factory("baseSvc", ["$http", "$q", function ($http, $q) {
+        var baseUrl = _spPageContextInfo.webAbsoluteUrl;
+        var getRequest = function (query) {
+            var deferred = $q.defer();
+            $http({
+                url: baseUrl + query,
+                method: "GET",
+                headers: {
+                    "accept": "application/json;odata=verbose",
+                    "content-Type": "application/json;odata=verbose"
+                }
+            })
+                .success(function (result) {                               
+                deferred.resolve(result);
+            })
+                .error(function (result, status) {
+                deferred.reject(status);
+            });
+            return deferred.promise;
+        };
+        var postRequest = function (data, url) {
+           
+            var deferred = $q.defer();
+           
+            $http({
+                url: baseUrl + url,
+                method: "POST",
+                headers: {
+                    "accept": "application/json;odata=verbose",
+                    "X-RequestDigest": document.getElementById("__REQUESTDIGEST").value,
+                    "content-Type": "application/json;odata=verbose"
+                },
+                data: JSON.stringify(data)
+            })
+                .success(function (result) {
+                                      console.log("Success" + result);
+                deferred.resolve(result);
+            })
+                .error(function (result, status) {
+                    console.log("error" + status);
+                deferred.reject(status);
+            });
+            return deferred.promise;
+        };
+        var updateRequest = function (data, url) {
+            var deferred = $q.defer();
+            $http({
+                url: baseUrl + url,
+                method: "PATCH",
+                headers: {
+                    "accept": "application/json;odata=verbose",
+                    "X-RequestDigest": document.getElementById("__REQUESTDIGEST").value,
+                    "content-Type": "application/json;odata=verbose",
+                    "X-Http-Method": "PATCH",
+                    "If-Match": "*"
+                },
+                data: JSON.stringify(data)
+            })
+                .success(function (result, status) {
+                deferred.resolve(status);
+            })
+                .error(function (result, status) {
+                deferred.reject(status);
+            });
+            return deferred.promise;
+        };
+        var deleteRequest = function(url){
+            var deferred = $q.defer();
+            $http({
+                url: baseUrl + url,
+                method: "DELETE",
+                headers: {
+                    "accept": "application/json;odata=verbose",
+                    "X-RequestDigest":document.getElementById("__REQUESTDIGEST").value,
+                    "IF-MATCH": "*"
+                }
+            })
+                .success(function (result) {
+                    deferred.resolve(result);
+                })
+                .error(function (result, status) {
+                    deferred.reject(status);
+                });
+            return deferred.promise;
+        };
+        return {
+            getRequest: getRequest,
+            postRequest: postRequest,
+            updateRequest: updateRequest,
+            deleteRequest:deleteRequest
+        };
+    }]);
+})();
