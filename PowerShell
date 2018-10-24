@@ -1,0 +1,205 @@
+stsadm.exe -o deploysolution -name MossSolution.wsp -immediate -allowgacdeployment
+
+
+
+
+S:\TFS\Internet.Publishing\Main\Source\Launch\Source\SiteDefinition\bin\Debug\CCAD.Portal.Internet.Publishing.Launch.SiteDefinition.wsp
+
+
+
+stsadm.exe -o deploysolution -name S:\TFS\Internet.Publishing\Main\Source\Launch\Source\SiteDefinition\bin\Debug\CCAD.Portal.Internet.Publishing.Launch.SiteDefinition.wsp -immediate -allowgacdeployment
+
+
+
+
+stsadm.exe -o deploysolution -name CCAD.Portal.Internet.Publishing.Launch.SiteDefinition.wsp -immediate -allowgacdeployment
+
+
+
+stsadm -o addsolution -name S:\TFS\Internet.Publishing\Main\Source\Launch\Source\SiteDefinition\bin\Debug\CCAD.Portal.Internet.Publishing.Launch.SiteDefinition.wsp
+
+
+Add-SPSolution -LiteralPath [Specify path to your file here.]\DuetSalesOrderSolution.wsp
+
+
+
+Add-SPSolution S:\Backup\ccad.eservices.administration.wsp
+Install-SPSolution –Identity ccad.eservices.administration.wsp –WebApplication http://ccadspa083/ -GACDeployment
+
+
+Install-SPSolution -Identity CCAD.Portal.Internet.Publishing.Launch.SiteDefinition.wsp -GACDeployment
+
+Install-SPSolution –Identity ccad.eservices.administration.wsp –WebApplication http://ccadspa083/ -GACDeployment
+
+
+
+
+stsadm -o deploysolution -name CCAD.Portal.Internet.Publishing.Launch.SiteDefinition.wsp -url http://moss-server -allowCasPolicies -immediate
+
+
+
+
+
+
+http://ccadspa092:5555/sites/internetdevsite 
+
+CCADSPA092
+
+WSS_Content_4f6820ebbc1e4a20ab6f14bd1da280c9
+
+
+
+
+Restore-SPSite -Identity http://ccadspa092:5555/sites/internetdevsite -Path S:\TFS\Internet.Publishing\Backup\InternetStaging_01March.bak [-DatabaseServer CCADSPA092] [-DatabaseName WSS_Content_4f6820ebbc1e4a20ab6f14bd1da280c9] [-Force] [-GradualDelete] [-Verbose]
+
+
+
+Restore-SPSite http://ccadspa092:5555/sites/TestDev -Path s:\Ravi\InternetStaging_01March.bak -force
+Remove-SPSite -Identity http://sharepoint.abc.com/sites/testsite
+
+
+stsadm.exe -o restore -url http://ccadspa092:5555/sites/TestDev -filename s:\Ravi\InternetStaging_01March.bak
+
+
+
+
+
+Update-SPSolution -Identity CCAD.Portal.Intranet.Publishing.MetricDefinition.wsp -LiteralPath S:\CCAD.Portal.Intranet.Publishing.MetricDefinition.wsp -GACDeployment
+
+
+
+Stop-SBFarm
+Set-SBFarm -RunAsAccount CCADNP\A-NPRaviP
+$RunAsPassword = ConvertTo-SecureString -AsPlainText -Force 'W0rkH@rd@IBM'
+[RunOnAllNodes] Update-SBHost -RunAsPassword $RunAsPassword
+
+Start-SBFarm
+
+
+
+
+
+$farm = Get-SpFarm  
+$file = $farm.Solutions.Item(-ccad.portal.internet.publishing.launch.contactus.wsp-).SolutionFile  
+$file.SaveAs(-c:\WSPBackup\ccad.portal.internet.publishing.launch.contactus.wsp-) 
+
+
+
+
+*********************************************************************************************************************************************
+    Adding an exsisting site column to an content type
+
+$site = Get-SPSite -Identity "http://ccadspa092"
+$web = $site.RootWeb
+
+$ct=$web.ContentTypes["CCAD Core Page Layout"];
+$fieldAdd=$web.Fields["MetaDescription"]
+$fieldLink=New-Object Microsoft.SharePoint.SPFieldLink($fieldAdd)
+$ct.FieldLinks.Add($fieldLink);
+$ct.Update()
+
+$web.Dispose()
+$site.Dispose()
+
+*********************************************************************************************************************************************
+
+    Pushing the Changes into the content types across the Site Collection
+
+    Add-PSSnapin Microsoft.SharePoint.PowerShell -erroraction SilentlyContinue
+    $spweb= Get-SPWeb "http://ccadspa092"
+    $fields = $spWeb.Fields
+    $field = $fields.GetFieldByInternalName("ProgressNotes")
+    $contentType = $spWeb.ContentTypes["CCAD Medical Record Request"]
+    $contentType.FieldLinks.Delete($field) 
+    $contentType.FieldLinks.Add($field)                                   
+    $contentType.Update($true)
+
+
+
+**********************************************************************************************************************************************************
+
+
+Loop through the subsites
+
+
+$site = Get-SPSite "http://your.site.com"
+foreach($web in $site.AllWebs)
+{ 
+    #iterates through all the Lists        
+    for ($i = 0; $i -lt $web.Lists.Count; $i++) 
+    { 
+      $list = $web.Lists[$i];                               
+      $MyListContentTypes = $list.ContentTypes                                                          
+      if ($MyListContentTypes -ne $null)
+      {
+
+         $ct = $list.ContentTypes["You Desired Content Type Name"]                                      
+         if($ct)                                                            
+         {
+
+             Write-Host "In list Content Type and deleting the field"  $ct.Fields["You Field Name"].Id;
+             $ct.FieldLinks.Delete($ct.Fields["You Field Name"].Id)                                  
+             $ct.Update()
+         }      
+       }
+    }     
+  }
+
+
+*******************************************************************************************************************
+
+$ServiceApps = Get-SPServiceApplication
+$UserProfileServiceApp = ""
+foreach ($sa in $ServiceApps)
+ {if ($sa.DisplayName -eq "<UPSAName>") 
+   {$UserProfileServiceApp = $sa}
+ }
+$UserProfileServiceApp.NetBIOSDomainNamesEnabled = 1
+$UserProfileServiceApp.Update()
+
+
+$ServiceApps = Get-SPServiceApplication
+foreach ($sa in $ServiceApps)
+ {
+   Write-Host $sa.DisplayName
+   Write-Host $sa.Id
+   Write-Host " "
+ }
+
+
+ Below script shows how to restart the User Profile Synchronization Service if disabled.
+
+ 
+
+============================================
+
+# Loads the SharePoint 2010 PowerShell extensions
+Add-PSSnapIn Microsoft.SharePoint.PowerShell 
+
+# Sets variable for User Profile Service Application: enter the name of your UPA in quotes, replacing the "UPA" example
+$upa = Get-SPServiceApplication |?{$_.displayname -eq "User Profile Service Application"}
+
+# Sets variable for service instance: enter your User Profile Synchonization Service instance ID/GUID in quotes
+# which can be found by running "Get-SPServiceInstance" in PowerShell manually and copying the ID
+$profsync = Get-SPServiceInstance |?{$_.id -eq "b1e90818-d9ca-4060-8d99-9406d98ff8d1"}
+
+# Sets variables for farm account and password: enter your password in quotes
+$farmacctpwd = ConvertTo-SecureString -AsPlainText -String "3X!s+in5mE" -Force
+$farmacct = (get-spfarm).defaultserviceaccount
+
+# Sets variable for synchronization server: enter your server name in quotes
+$syncServer = "CCADSPA083"
+if($profsync.Status -eq "disabled")
+{
+  Write-Host "Provisioning User Profile Synchronization Service"
+  $upa.SetSynchronizationMachine($syncServer, $profsync.ID, $farmacct.LookupName(), $farmacctpwd)
+}
+else
+{
+  write-host "Profile Synchronization Service is"$profsync.Status
+}
+
+
+
+$webApp = Get-SPWebApplication "http://ccadspa083:2222" 
+[Microsoft.SharePoint.Publishing.PublishingCache]::FlushBlobCache($webApp)
