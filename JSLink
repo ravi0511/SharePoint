@@ -1,0 +1,10 @@
+https://www.codeproject.com/Articles/620110/SharePoint-Client-Side-Rendering-List-Views
+
+
+SP.SOD.executeFunc("clienttemplates.js", "SPClientTemplates", function() {
+ 
+  SPClientTemplates.TemplateManager.RegisterTemplateOverrides({
+    // ...
+  });
+ 
+})
