@@ -1,6 +1,10 @@
 stsadm.exe -o deploysolution -name MossSolution.wsp -immediate -allowgacdeployment
 
 
+$farm = Get-SPFarm
+$farm.BuildVersion
+
+
 
 
 S:\TFS\Internet.Publishing\Main\Source\Launch\Source\SiteDefinition\bin\Debug\CCAD.Portal.Internet.Publishing.Launch.SiteDefinition.wsp
