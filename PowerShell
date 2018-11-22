@@ -5,6 +5,10 @@ $farm = Get-SPFarm
 $farm.BuildVersion
 
 
+$Admin = new-object Microsoft.SharePoint.Administration.SPSiteAdministration('http://mydepartments.ccadnp.local/dep/fin/’)
+$Admin.ClearMaintenanceMode(); 
+
+
 
 
 S:\TFS\Internet.Publishing\Main\Source\Launch\Source\SiteDefinition\bin\Debug\CCAD.Portal.Internet.Publishing.Launch.SiteDefinition.wsp
