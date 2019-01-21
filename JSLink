@@ -8,3 +8,50 @@ SP.SOD.executeFunc("clienttemplates.js", "SPClientTemplates", function() {
   });
  
 })
+
+
+
+Source: https://zimmergren.net/sp-2013-using-the-spfield-jslink-property-to-change-the-way-your-field-is-rendered-in-sharepoint-2013/
+
+// Create a namespace for our functions so we don't collide with anything else 
+var zimmergrenSample = zimmergrenSample || {}; 
+
+// Create a function for customizing the Field Rendering of our fields 
+zimmergrenSample.CustomizeFieldRendering = function () {
+    var fieldJsLinkOverride = {};
+    fieldJsLinkOverride.Templates = {};
+    fieldJsLinkOverride.Templates.Fields = 
+    { 
+        // Make sure the Priority field view gets hooked up to the GetPriorityFieldIcon method defined below     
+        'Priority': 
+        { 
+            'View': zimmergrenSample.GetPriorityFieldIcon 
+        } 
+    }; 
+
+    // Register the rendering template
+    SPClientTemplates.TemplateManager.RegisterTemplateOverrides(fieldJsLinkOverride); 
+}; 
+
+// Create a function for getting the Priority Field Icon value (called from the first method) 
+zimmergrenSample.GetPriorityFieldIcon = function (ctx)  
+{ 
+    var priority = ctx.CurrentItem.Priority; 
+    
+    // In the following section we simply determine what the rendered html output should be. In my case I'm setting an icon. 
+    if (priority.indexOf("(1) High") != -1) 
+    {  
+        return "<img src='/_layouts/15/images/Zimmergren.JSLinkSample/HighPrioritySmall.png' /> " + priority; 
+    } 
+    
+    if (priority.indexOf("(2) Normal") != -1) 
+    { 
+        return "<img src='/_layouts/15/images/Zimmergren.JSLinkSample/NormalPrioritySmall.png' /> " + priority; 
+    } 
+    if (priority.indexOf("(3) Low") != -1) 
+    { 
+        return "<img src='/_layouts/15/images/Zimmergren.JSLinkSample/LowPrioritySmall.png' /> " + priority; 
+    } 
+
+    return ctx.CurrentItem.Priority;  
+};
