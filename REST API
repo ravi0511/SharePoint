@@ -63,6 +63,15 @@ function getitems()
             "accept": "application/json;odata=verbose",
             "content-type": "application/json;odata=verbose",
             "X-RequestDigest": $("#__REQUESTDIGEST").val(),
+	    
+	    
+	    /*Updating Item*/
+	    "X-RequestDigest" : $("#__REQUESTDIGEST").val(),
+            "IF-MATCH": "*",
+            "X-HTTP-Method":"MERGE",
+            "accept": "application/json;odata=verbose",
+            "content-type": "application/json;odata=verbose",
+            "content-length":"length of post body"
 
         }
     }).done(function (result) {
