@@ -1,0 +1,9 @@
+
+
+substring-after(AccountId[UserName = translate(substring-after(., "\"), "ABCDEFGHIJKLMNOPQRSTUVWYXZ", "abcdefghijklmnopqrstuvwyxz")], "\")
+
+
+translate(substring-after(., "\"), "ABCDEFGHIJKLMNOPQRSTUVWYXZ", "abcdefghijklmnopqrstuvwyxz")
+
+
+translate(substring-after(userName(), "\"), "ABCDEFGHIJKLMNOPQRSTUVWYXZ", "abcdefghijklmnopqrstuvwyxz")
