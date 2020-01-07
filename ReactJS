@@ -1,0 +1,2178 @@
+<script src="../SiteAssets/JS/jquery-1.12.4.min.js"></script>
+<script src="../SiteAssets/JS/babel.min.js"></script>
+<script src="../SiteAssets/JS/react.min.js"></script>
+<script src="../SiteAssets/JS/react-dom.min.js"></script>  
+<script src="../SiteAssets/JS/react-dom.production.min.js"></script>
+<script src="../SiteAssets/JS/jquery-ui.min.js"></script>
+<script src="../SiteAssets/JS/TimeLine.js"></script>
+<script src="../SiteAssets/JS/sp-events-parser.js"></script>
+<script src="../SiteAssets/JS/Initialization.js"></script>
+<script type="text/babel" src="../SiteAssets/JS/MeetingTracker.js"></script>
+<link href="../SiteAssets/CSS/jquery-ui.css" rel="stylesheet"> 
+<link href="../SiteAssets/CSS/main2.css" rel="stylesheet">
+<link href="../SiteAssets/CSS/TimeLine.css" rel="stylesheet">
+<link href="../SiteAssets/CSS/Daimler-Digital-Tech-Bold/style.css" rel="stylesheet">
+<link href="../SiteAssets/CSS/main.css" rel="stylesheet">
+<div class="MeetingTracker"></div>
+
+*****************************************************************************************************************************
+
+const { Component } = React;
+const { render } = ReactDOM;
+// import RichTextEditor from 'react-rte';
+
+var classnames = "cd-horizontal-timeline";
+var ItemID,ISADMIN,meetingdateStyle;
+var ItemData = [];
+var MeetingDates = [];
+
+var LISTNAMES = {
+    CALENDARLIST : "Calendar",
+    AGENDALIST : "Agenda",
+    ACTIONLIST : "Action",
+    LINKLIST : "Agenda Links",
+    ACTIONCOMMENTSLIST : "Action Comments",
+    MEETINGADMINSLIST: "Meeting Tracker Admin",
+    MEETINGDOCUMENTS: "Meeting Documents",
+};
+
+function ResetValues(){
+    $('#AgendaTitle').val('');
+    $('.ValidationError').html('');
+    $('#agendaID').val('');
+    $('#agenda2ID').val('');
+    $('#agenda3ID').val('');
+    $('#agenda4ID').val('');
+    $('#ActionTitle').val('');
+    $('#Actiondescrip').val('');
+    $('#AddAttachment').val('');
+    $('#startDate').val('');
+    $('#endDate').val('');
+    $('#actionStatus').val('');
+    $('#ActionComment').val('');
+    $('#actionID').val('');
+    $('#action2ID').val('');
+    $('#AgendaForm #Deletebtn').show();
+    $('#ActionForm #Deletebtn').show();
+    $('#progressbar')[0].value = 0;
+    $('#progressbar').parent().parent().hide();
+    $('#AttachmentForm .close').css('pointer-events','auto');
+    $('#AttachmentForm button').css('pointer-events','auto');
+    $('#AddAttachment').css('pointer-events','auto');
+    $('#linkurl').val('');
+    $('#linktitle').val('');
+    $('#meetingDate').html('');
+    $('#agendaStatus').parent().parent().show();
+    $('#meetingDate').parent().parent().hide();
+    $("input[type='file']").replaceWith($("input[type='file']").clone(true));
+    ItemData = [];
+}
+
+function buildProfilepic(data){
+    if(data != undefined)
+    {
+        var imgurl = "https://mysite.sp.wp.corpintra.net/User%20Photos/Profile%20Pictures/"+ data.UserName +"_LThumb.jpg";
+        // $.get(imgurl)
+        // .done(function() { 
+        //     // exists code
+        //     return imgurl;
+        // }).fail(function() { 
+        //     // not exists code
+        //     return "https://mysite.sp.wp.corpintra.net/_layouts/15/images/PersonPlaceholder.96x96x32.png";
+        // });
+        return imgurl;
+    }
+}
+
+class MeetingTracker extends React.Component{
+    //debugger;
+    constructor(props){  
+        super(props);  
+          this.state = {
+                
+                REACTHANDLER: '',
+                CALENDARDATA: [],
+                CALENDARITEMS: [],
+                AGENDADATA: [],
+                ACTIONDATA: [],
+                LINKDATA: [],
+                ACTIONCOMMENTSDATA: [],
+                MEETINGDOCUMENTSDATA: []
+                
+            };  
+        // this.CreateNewAgenda = this.CreateNewAgenda.bind(this);
+        this.CloseModalWindow= this.CloseModalWindow.bind(this);
+        this.RetrieveSPData = this.RetrieveSPData.bind(this);
+        this.NewAgendaForm = this.NewAgendaForm.bind(this);
+        // this.EditAgendaDetails = this.EditAgendaDetails.bind(this);
+        this.CreateNewItems = this.CreateNewItems.bind(this);
+        this.EventsFormatDate = this.EventsFormatDate.bind(this);
+        this.EventsFormatTime = this.EventsFormatTime.bind(this);
+        this.getparameterbyName = this.getparameterbyName.bind(this);
+        this.CreateUpdateItemData = this.CreateUpdateItemData.bind(this);
+        this.UpdateItems = this.UpdateItems.bind(this);
+        this.GetUserDetails = this.GetUserDetails.bind(this);
+        this.DeleteItems = this.DeleteItems.bind(this);
+        this.EditCalendarDetails = this.EditCalendarDetails.bind(this);
+        this.AddAttachment = this.AddAttachment.bind(this);
+    }
+
+    componentDidMount(){
+        //debugger;
+        ShowWaitScreen();
+        ItemID = this.getparameterbyName('MeetingID');
+        // this.GetUserDetails();
+        this.RetrieveSPData();
+    }
+
+    componentDidUpdate(){
+        //debugger;
+        // console.log('working2');
+        $('#progressbar').parent().parent().hide();
+        var timelines = $('.cd-horizontal-timeline');
+        initTimeline(timelines);
+        initialization(this.state.CALENDARITEMS);
+        // initializePeoplePicker('peoplePickerDiv');
+    }
+
+    GetUserDetails() {  
+        // var url = _spPageContextInfo.webAbsoluteUrl + "/_api/web/currentuser";  
+        // $.ajax({  
+        //     url: url,  
+        //     headers: {  
+        //         Accept: "application/json;odata=verbose"  
+        //     },  
+        //     async: false,  
+        //     success: function (data) {  
+        //         currentUser = data.d; // Data will have user object      
+        //     },  
+        //     eror: function (data) {  
+        //         alert("An error occurred. Please try again.");  
+        //     }  
+        // });
+        var url = _spPageContextInfo.webAbsoluteUrl + "/_api/Web/SiteGroups/GetByName('Meeting Tracker Users')/users?$select=Email,Id";  
+        $.ajax({  
+            url: url,  
+            headers: {  
+                Accept: "application/json;odata=verbose"  
+            },  
+            async: false,  
+            success: function (data) {  
+                // console.log(data); // Data will have user object
+
+            },  
+            eror: function (data) {  
+                alert("An error occurred. Please try again.");  
+            }  
+        });
+
+    } 
+    
+    EventsFormatDate(data){
+        var timeformat = new Date(data);
+        var days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        var date = timeformat.getDate() < 10 ? "0" + timeformat.getDate() : timeformat.getDate();
+        var month = (timeformat.getMonth() + 1) < 10 ? "0" + (timeformat.getMonth() + 1) : (timeformat.getMonth() + 1);
+        return ""+ days[timeformat.getDay()] +" " + date + "/" + month  + "/" + timeformat.getFullYear() +"";
+    }
+
+    EventsFormatTime(data){
+        var timeformat = new Date(data);
+        var hours = timeformat.getHours() < 10 ? "0" + timeformat.getHours() : timeformat.getHours();
+        var mintues = timeformat.getMinutes() < 10 ? "0" + timeformat.getMinutes() : timeformat.getMinutes();
+        return "" + hours + ":" + mintues +"";
+    }
+
+    getparameterbyName(name){
+        name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
+        var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
+            results = regex.exec(location.search);
+        return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
+    }
+
+    RetrieveSPData(_listName){
+        function getData(ListName) {
+            var url = "";
+            switch(ListName){
+                case LISTNAMES.CALENDARLIST:
+                        url =  _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/getbytitle('"+ ListName +"')/items("+ ItemID +")?$select=*,Duration,RecurrenceData,Author/Title,Author/UserName,ParticipantsPicker/Title,ParticipantsPicker/UserName&$expand=Author,ParticipantsPicker";
+                        break;
+                
+                // case LISTNAMES.ACTIONLIST:
+                //         url =  _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/getbytitle('"+ ListName +"')/items?$select=*,Author/Title,Author/UserName,AssignedTo/Title,AssignedTo/UserName&$expand=Author,AssignedTo&$filter=MeetingID eq "+ ItemID +"&$orderby=ID asc";
+                //         break;
+                
+                case LISTNAMES.MEETINGADMINSLIST:
+                        url =  _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/getbytitle('"+ ListName +"')/items?$select=*,Admin/Title,Admin/UserName&$expand=Admin&$orderby=ID asc";
+                        break;
+
+                // case LISTNAMES.AGENDALIST:
+                //         url =  _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/getbytitle('"+ ListName +"')/items?$select=*,AttachmentFiles,Author/Title,Author/UserName,AttachmentUser/Title,AttachmentUser/UserName,Editor/Title,Editor/UserName&$expand=Author,Editor,AttachmentUser,AttachmentFiles&$filter=MeetingID eq "+ ItemID +"&$orderby=ID asc";
+                //         break;
+
+                case LISTNAMES.MEETINGDOCUMENTS:
+                        url =  _spPageContextInfo.webAbsoluteUrl + "/_api/web/GetFolderByServerRelativeUrl('"+ ListName +"/"+ ItemID +"')/Files?$select=*,Author/Title,Author/UserName,Editor/Title,Editor/UserName&$expand=ListItemAllFields,Author,Editor";
+                        break;
+
+                default:
+                        url =  _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/getbytitle('"+ ListName +"')/items?$select=*,Author/Title,Author/UserName,Editor/Title,Editor/UserName&$expand=Author,Editor&$filter=MeetingID eq "+ ItemID +"&$orderby=ID asc";
+                        break;
+            }
+            return $.ajax({
+                url: url,
+                type: "GET",
+                headers: {
+                "Accept": "application/json;odata=verbose",
+                "X-RequestDigest": jQuery("#__REQUESTDIGEST").val()
+                    //"IF-MATCH":"*"
+                    
+                },
+                success: function (resultData) {
+                    var value;
+                    if(resultData.d.results != undefined)
+                    {
+                        value = resultData.d.results;
+                        ++i;
+                    }
+                    else
+                    {
+                        value = resultData.d;
+                        ++i;
+                    }
+                    var temp = value.length == undefined ? value.__metadata.type : (value.length == 0 ? "" : value[0].__metadata.type);
+                    var list = temp.slice(8, temp.length).replace('ListItem','').replace(/_x0020_/g,' ');
+                    switch(list){
+                        case LISTNAMES.CALENDARLIST:
+                                LISTDATA.CALENDARDATA = value;
+                                LISTDATA.CALENDARITEMS = spEventsParser.parseEvent(value);
+                                if(_listName != undefined && _listName != null){
+                                    reactHandler.setState({
+                                        CALENDARDATA: value,
+                                        CALENDARITEMS: spEventsParser.parseEvent(value)
+                                    });
+                                }
+                                break;
+
+                        case LISTNAMES.ACTIONLIST:
+                                LISTDATA.ACTIONDATA = value;
+                                if(_listName != undefined && _listName != null){
+                                    reactHandler.setState({
+                                        ACTIONDATA: value
+                                    });
+                                }
+                                break;
+
+                        case LISTNAMES.AGENDALIST:
+                                LISTDATA.AGENDADATA = value;
+                                if(_listName != undefined && _listName != null){
+                                    reactHandler.setState({
+                                        AGENDADATA: value
+                                    });
+                                }
+                                break;
+
+                        case LISTNAMES.ACTIONCOMMENTSLIST:
+                                LISTDATA.ACTIONCOMMENTSDATA = value;
+                                if(_listName != undefined && _listName != null){
+                                    reactHandler.setState({
+                                        ACTIONCOMMENTSDATA: value
+                                    });
+                                }
+                                break;
+
+                        case LISTNAMES.MEETINGADMINSLIST:
+                                LISTDATA.MEETINGADMINSDATA = value;
+                                break;
+
+                        case LISTNAMES.LINKLIST:
+                                LISTDATA.LINKDATA = value;
+                                if(_listName != undefined && _listName != null){
+                                    reactHandler.setState({
+                                        LINKDATA: value
+                                    });
+                                }
+                                break;
+
+                        default:
+                                LISTDATA.MEETINGDOCUMENTSDATA = value;
+                                if(_listName != undefined && _listName != null){
+                                    reactHandler.setState({
+                                        MEETINGDOCUMENTSDATA: value
+                                    });
+                                }
+                                break;
+                    }
+                },
+                error: function (jqXHR, textStatus, errorThrown) {
+                }
+            });
+        }
+
+        var reactHandler = this;
+        var i = 0;
+        var itemArrays = {};
+        // when all the data calls are successful you can access the data via
+        var LISTDATA = {
+            CALENDARDATA: [],
+            CALENDARITEMS: [],
+            AGENDADATA: [],
+            ACTIONDATA: [],
+            LINKDATA: [],
+            ACTIONCOMMENTSDATA: [],
+            MEETINGADMINSDATA: [],
+            MEETINGDOCUMENTSDATA: []
+        };
+        var feedPromises = [];
+
+        if(_listName != undefined && _listName != null){
+                feedPromises.push(getData(_listName));
+        }else{
+            $.each(LISTNAMES, function (index, value) {
+                feedPromises.push(getData(value));
+            });
+        }
+
+        var flag = true;
+        // wait until all the feeds return data to continue
+        $.when.apply(this, feedPromises)
+            .then((result) => {
+
+                if(!(_listName != undefined && _listName != null)){
+
+                    var currentUserCheck = $.grep(LISTDATA.MEETINGADMINSDATA, function(value, index){ return value.AdminId == _spPageContextInfo.userId });
+                    if(LISTDATA.CALENDARDATA.AuthorId == _spPageContextInfo.userId || currentUserCheck.length > 0){
+                        ISADMIN = true;
+                    }
+                    else{
+                        ISADMIN = false;
+                    }
+                    currentUserCheck = currentUserCheck.concat($.grep(LISTDATA.CALENDARDATA.ParticipantsPickerId.results, function(value, index){ return value == _spPageContextInfo.userId }));
+                    if(currentUserCheck.length < 1 && LISTDATA.CALENDARDATA.AuthorId != _spPageContextInfo.userId){
+                        alert("You do not have permission to view this meeting details, kindly contact the organizer to add you in the meeting.");
+                        window.location.href = _spPageContextInfo.webServerRelativeUrl;
+                    }
+                
+
+                    reactHandler.setState({
+                        // data: LISTDATA,
+                        REACTHANDLER : reactHandler,
+                        CALENDARDATA: LISTDATA.CALENDARDATA,
+                        CALENDARITEMS: LISTDATA.CALENDARITEMS,
+                        AGENDADATA: LISTDATA.AGENDADATA,
+                        ACTIONDATA: LISTDATA.ACTIONDATA,
+                        LINKDATA: LISTDATA.LINKDATA,
+                        ACTIONCOMMENTSDATA: LISTDATA.ACTIONCOMMENTSDATA,
+                        // MEETINGADMINSDATA: LISTDATA.MEETINGADMINSDATA,
+                        MEETINGDOCUMENTSDATA: LISTDATA.MEETINGDOCUMENTSDATA
+                    });
+                }
+        
+        });
+    }
+
+    NewAgendaForm(){
+        $('#AgendaForm #Deletebtn').hide();
+        $('#agendaStatus').parent().parent().hide();
+        $('#NewAgendaEstimatedTime').val(0);
+        $('#AgendaForm').css('display','block');
+    }
+
+    CreateUpdateItemData(ListName){
+        if(ItemData.length == 0){
+            this.CreateNewItems(ListName);
+        }
+        else if(ListName == LISTNAMES.AGENDALIST && $('#agendaStatus').val() == "Move to Future Meeting"){
+                this.MoveAgenda()
+        }
+        else{
+            this.UpdateItems(ListName);
+        }
+    }
+
+    CloseModalWindow(){
+        $('.modal').css('display','none');
+        ResetValues();
+    }
+
+    UpdateItems(ListName){
+        var flag = true;
+        var reactHandler = this;
+        var datastored = "";
+        var ErrorMessage = "";
+        var URL;
+        if(ItemData.length != 0){
+            URL = _spPageContextInfo.webAbsoluteUrl+"/_api/web/lists/GetByTitle('"+ ListName +"')/Items("+ ItemData[0].ID +")";
+        }
+        switch(ListName){
+            case LISTNAMES.AGENDALIST:
+                    var TitleValue = $('#AgendaTitle').val() == "" ? "" : $('#AgendaTitle').val();
+                    var Status = $('#agendaStatus').val();
+                    // var month = $('.timeline').find('a.selected').data().date.slice($('.timeline').find('a.selected').data().date.indexOf('/') + 1,$('.timeline').find('a.selected').data().date.length - 5);
+                    // var year = $('.timeline').find('a.selected').data().date.slice($('.timeline').find('a.selected').data().date.length-4,$('.timeline').find('a.selected').data().date.length);
+                    // var date = $('.timeline').find('a.selected').data().date.slice(0,$('.timeline').find('a.selected').data().date.indexOf('/'));
+                    // var temp = new Date();
+                    // var todaysDate = temp == null ? "" : "" + new Date(temp).getDate() + "/" + (new Date(temp).getMonth() + 1) + "/" + new Date(temp).getFullYear() +"";
+                    // if($('#agendaStatus').val() == "Move to Future Meeting"){
+                    //     month = $('#meetingDate').val().slice($('#meetingDate').val().indexOf('/') + 1,$('#meetingDate').val().length - 5);
+                    //     year = $('#meetingDate').val().slice($('#meetingDate').val().length-4,$('#meetingDate').val().length);
+                    //     date = $('#meetingDate').val().slice(0,$('#meetingDate').val().indexOf('/'));
+                    //     Status = "Inprogress";
+                    // }
+                    if($('#AgendaTitle').val() == ""){
+                        flag = false;
+                        ErrorMessage = "please enter a agenda title";
+                    }
+                    if($('#AgendaTitle').val().length > 65){
+                        flag = false;
+                        ErrorMessage = "entered title has exceeded the word limit";
+                    }
+                    if($('#NewAgendaEstimatedTime').val() < 0){
+                        flag = false;
+                        ErrorMessage = "please enter a valid agenda timer";
+                    }
+                    // if(new Date(""+ month +"/"+ date +"/"+ year +"") < new Date(todaysDate))
+                    // {
+                    //     flag = false;
+                    //     ErrorMessage = "please enter a valid agenda timer";
+                    // }
+                    datastored = JSON.stringify({
+                        '__metadata': {
+                            'type': 'SP.Data.AgendaListItem'
+                        },
+                        'Title': TitleValue,
+                        'AgendaTimer' : $('#NewAgendaEstimatedTime').val(),
+                        'Status' : Status,
+                    });
+                    break;
+
+            case LISTNAMES.ACTIONLIST:
+                    var TitleValue = $('#ActionTitle').val() == "" ? "" : $('#ActionTitle').val();
+                    var month = $('#startDate').val().slice($('#startDate').val().indexOf('/') + 1,$('#startDate').val().length - 5);
+                    var year = $('#startDate').val().slice($('#startDate').val().length-4,$('#startDate').val().length);
+                    var date = $('#startDate').val().slice(0,$('#startDate').val().indexOf('/'));
+                    var startDate = ""+ month +"/"+ date +"/"+ year +"";
+                    month = $('#endDate').val().slice($('#endDate').val().indexOf('/') + 1,$('#endDate').val().length - 5);
+                    year = $('#endDate').val().slice($('#endDate').val().length-4,$('#endDate').val().length);
+                    date = $('#endDate').val().slice(0,$('#endDate').val().indexOf('/'));
+                    var endDate = ""+ month +"/"+ date +"/"+ year +"";
+                    if($('#actionStatus').val() == null){
+                        flag = false;
+                        ErrorMessage = "please select a status";
+                    }
+                    // if($('#Actiondescrip').val() == ""){
+                    //     flag = false;
+                    //     ErrorMessage = "please enter a valid agenda timer";
+                    // }
+                    if($('#agenda2ID').val() == ""){
+                        flag = false;
+                        ErrorMessage = "Error in submitting the form";
+                    }
+                    if($('#ActionTitle').val() == ""){
+                        flag = false;
+                        ErrorMessage = "please enter a action title";
+                    }
+                    if(new Date(startDate) > new Date(endDate)){
+                        flag = false;
+                        ErrorMessage = "start date cannot be greater than end date";
+                    }
+                    datastored = JSON.stringify({
+                        '__metadata': {
+                            'type': 'SP.Data.ActionListItem'
+                        },
+                        'Title': TitleValue,
+                        'MeetingID' : ItemID,
+                        'AgendaID' : $('#agenda2ID').val(),
+                        'Description' : $('#Actiondescrip').val(),
+                        'StartDate' : startDate,
+                        'DueDate' : endDate,
+                        'Status' : $('#actionStatus').val()
+                        // 'EventDate' : ""+ month +"/"+ date +"/"+ year +"",
+                        // 'AgendaTimer' : $('#NewAgendaEstimatedTime').val()
+                    });
+                    break;
+
+            case LISTNAMES.ACTIONCOMMENTSLIST:
+                    var CommentValue = $('#ActionComment').val() == "" ? "" : $('#ActionComment').val();
+                    if($('#ActionComment').val() == ""){
+                        flag = false;
+                        ErrorMessage = "please enter a comment";
+                    }
+                    if($('#action2ID').val() == ""){
+                        flag = false;
+                        ErrorMessage = "Error in submitting the form";
+                    }
+                    if($('#agenda3ID').val() == ""){
+                        flag = false;
+                        ErrorMessage = "Error in submitting the form";
+                    }
+                    datastored = JSON.stringify({
+                        '__metadata': {
+                            'type': 'SP.Data.Action_x0020_CommentsListItem'
+                        },
+                        'Title': "Action Comment",
+                        'Comments': CommentValue,
+                        'MeetingID' : ItemID,
+                        'ActionID': $('#action2ID').val(),
+                        'AgendaID': $('#agenda3ID').val()
+                    });
+                    break;
+
+            case LISTNAMES.LINKLIST:
+                    var TitleValue = $('#linktitle').val() == "" ? "" : $('#linktitle').val();
+                    var URLValue = $('#linkurl').val() == "" ? "" : $('#linkurl').val();
+                    if(TitleValue == ""){
+                        flag = false;
+                        ErrorMessage = "please enter a link title";
+                    }
+                    if(URLValue.indexOf('//') == -1 && URLValue.indexOf('\\') == -1){
+                        flag = false;
+                        ErrorMessage = "please enter a valid link";
+                    }
+                    datastored = JSON.stringify({
+                        '__metadata': {
+                            'type': 'SP.Data.Agenda_x0020_LinksListItem'
+                        },
+                        'Title': TitleValue,
+                        'LinkURL': 
+                        {
+                            '__metadata': { 'type': 'SP.FieldUrlValue' },
+                            'Description': TitleValue,
+                            'Url': URLValue
+                        }
+                    });
+                    break;
+        }
+        if(flag)
+        {
+            var call =  $.ajax({
+                url: URL,
+                type: "POST",
+                async: false,
+                data: datastored,
+                headers:{
+                    "X-RequestDigest" : $("#__REQUESTDIGEST").val(),
+                    "IF-MATCH": "*",
+                    "X-HTTP-Method":"MERGE",
+                    "accept": "application/json;odata=verbose",
+                    "content-type": "application/json;odata=verbose",
+                    // "content-length":"length of post body"
+                }
+            });
+            call.done(function (result) {
+                reactHandler.RetrieveSPData(ListName);
+                reactHandler.CloseModalWindow();
+            })
+            call.fail(function (error) {
+                console.log(error.statusText);
+            });
+        }
+        else
+        {
+            $('.ValidationError').html(ErrorMessage);
+        }
+    }
+
+    CreateNewItems(ListName){
+        var flag = true;
+        var reactHandler = this;
+        var datastored = "";
+        var ErrorMessage = "";
+        var URL = _spPageContextInfo.webAbsoluteUrl+"/_api/web/lists/GetByTitle('"+ ListName +"')/Items";
+        switch(ListName){
+            case LISTNAMES.AGENDALIST:
+                    panelActive = $('.events-content').find('.selected').find('div[id*="accordion"]').find('h3').length;
+                    var TitleValue = $('#AgendaTitle').val() == "" ? "" : $('#AgendaTitle').val();
+                    var month = $('.timeline').find('a.selected').data().date.slice($('.timeline').find('a.selected').data().date.indexOf('/') + 1,$('.timeline').find('a.selected').data().date.length - 5);
+                    var year = $('.timeline').find('a.selected').data().date.slice($('.timeline').find('a.selected').data().date.length-4,$('.timeline').find('a.selected').data().date.length);
+                    var date = $('.timeline').find('a.selected').data().date.slice(0,$('.timeline').find('a.selected').data().date.indexOf('/'));
+                    if($('#AgendaTitle').val() == ""){
+                        flag = false;
+                        ErrorMessage = "please enter a agenda title";
+                    }
+                    if($('#AgendaTitle').val().length > 65){
+                        flag = false;
+                        ErrorMessage = "entered title has exceeded the word limit";
+                    }
+                    if($('#NewAgendaEstimatedTime').val() < 0){
+                        flag = false;
+                        ErrorMessage = "please enter a valid agenda timer";
+                    }
+                    datastored = JSON.stringify({
+                        '__metadata': {
+                            'type': 'SP.Data.AgendaListItem'
+                        },
+                        'Title': TitleValue,
+                        'MeetingID' : ItemID,
+                        'EventDate' : ""+ month +"/"+ date +"/"+ year +"",
+                        'AgendaTimer' : $('#NewAgendaEstimatedTime').val(),
+                        'Created' : ""+ month +"/"+ date +"/"+ year +""
+                    });
+                    break;
+
+            case LISTNAMES.ACTIONLIST:
+                    var TitleValue = $('#ActionTitle').val() == "" ? "" : $('#ActionTitle').val();
+                    var month = $('#startDate').val().slice($('#startDate').val().indexOf('/') + 1,$('#startDate').val().length - 5);
+                    var year = $('#startDate').val().slice($('#startDate').val().length-4,$('#startDate').val().length);
+                    var date = $('#startDate').val().slice(0,$('#startDate').val().indexOf('/'));
+                    var startDate = ""+ month +"/"+ date +"/"+ year +"";
+                    month = $('#endDate').val().slice($('#endDate').val().indexOf('/') + 1,$('#endDate').val().length - 5);
+                    year = $('#endDate').val().slice($('#endDate').val().length-4,$('#endDate').val().length);
+                    date = $('#endDate').val().slice(0,$('#endDate').val().indexOf('/'));
+                    var endDate = ""+ month +"/"+ date +"/"+ year +"";
+                    month = $('.timeline').find('a.selected').data().date.slice($('.timeline').find('a.selected').data().date.indexOf('/') + 1,$('.timeline').find('a.selected').data().date.length - 5);
+                    year = $('.timeline').find('a.selected').data().date.slice($('.timeline').find('a.selected').data().date.length-4,$('.timeline').find('a.selected').data().date.length);
+                    date = $('.timeline').find('a.selected').data().date.slice(0,$('.timeline').find('a.selected').data().date.indexOf('/'));
+                    if($('#ActionTitle').val() == ""){
+                        flag = false;
+                        ErrorMessage = "please enter a action title";
+                    }
+                    if($('#actionStatus').val() == null){
+                        flag = false;
+                        ErrorMessage = "please select a status";
+                    }
+                    // if($('#Actiondescrip').val() == ""){
+                    //     flag = false;
+                    //     ErrorMessage = "please enter a valid agenda timer";
+                    // }
+                    if($('#agenda2ID').val() == ""){
+                        flag = false;
+                        ErrorMessage = "Error in submitting the form";
+                    }
+                    if(new Date(startDate) > new Date(endDate)){
+                        flag = false;
+                        ErrorMessage = "start date cannot be greater than end date";
+                    }
+                    datastored = JSON.stringify({
+                        '__metadata': {
+                            'type': 'SP.Data.ActionListItem'
+                        },
+                        'Title': TitleValue,
+                        'MeetingID' : ItemID,
+                        'AgendaID' : $('#agenda2ID').val(),
+                        'Description' : $('#Actiondescrip').val(),
+                        'StartDate' : startDate,
+                        'DueDate' : endDate,
+                        'Status' : $('#actionStatus').val(),
+                        'EventDate' : ""+ month +"/"+ date +"/"+ year +""
+                        // 'EventDate' : ""+ month +"/"+ date +"/"+ year +"",
+                        // 'AgendaTimer' : $('#NewAgendaEstimatedTime').val()
+                    });
+                    break;
+
+            case LISTNAMES.ACTIONCOMMENTSLIST:
+                    var CommentValue = $('#ActionComment').val() == "" ? "" : $('#ActionComment').val();
+                    if($('#ActionComment').val() == ""){
+                        flag = false;
+                        ErrorMessage = "please enter a comment";
+                    }
+                    if($('#action2ID').val() == ""){
+                        flag = false;
+                        ErrorMessage = "Error in submitting the form";
+                    }
+                    if($('#agenda3ID').val() == ""){
+                        flag = false;
+                        ErrorMessage = "Error in submitting the form";
+                    }
+                    datastored = JSON.stringify({
+                        '__metadata': {
+                            'type': 'SP.Data.Action_x0020_CommentsListItem'
+                        },
+                        'Title': "Action Comment",
+                        'Comments': CommentValue,
+                        'MeetingID' : ItemID,
+                        'ActionID': $('#action2ID').val(),
+                        'AgendaID': $('#agenda3ID').val()
+                    });
+                    break;
+
+            case LISTNAMES.LINKLIST:
+                var TitleValue = $('#linktitle').val() == "" ? "" : $('#linktitle').val();
+                var URLValue = $('#linkurl').val() == "" ? "" : $('#linkurl').val();
+                var month = $('.timeline').find('a.selected').data().date.slice($('.timeline').find('a.selected').data().date.indexOf('/') + 1,$('.timeline').find('a.selected').data().date.length - 5);
+                var year = $('.timeline').find('a.selected').data().date.slice($('.timeline').find('a.selected').data().date.length-4,$('.timeline').find('a.selected').data().date.length);
+                var date = $('.timeline').find('a.selected').data().date.slice(0,$('.timeline').find('a.selected').data().date.indexOf('/'));
+                if(TitleValue == ""){
+                    flag = false;
+                    ErrorMessage = "please enter a link title";
+                }
+                if(URLValue.indexOf('//') == -1 && URLValue.indexOf('\\') == -1){
+                    flag = false;
+                    ErrorMessage = "please enter a valid link";
+                }
+                datastored = JSON.stringify({
+                    '__metadata': {
+                        'type': 'SP.Data.Agenda_x0020_LinksListItem'
+                    },
+                    'Title': TitleValue,
+                    'LinkURL': 
+                    {
+                        '__metadata': { 'type': 'SP.FieldUrlValue' },
+                        'Description': TitleValue,
+                        'Url': URLValue
+                    },
+                    'MeetingID' : ItemID,
+                    'EventDate' : ""+ month +"/"+ date +"/"+ year +"",
+                    'AgendaID': $('#agenda4ID').val()
+                });
+                break;
+        }
+        if(flag)
+        {
+            var call =  $.ajax({
+                url: URL,
+                type: "POST",
+                async: false,
+                data: datastored,
+                headers:{
+                    "accept": "application/json;odata=verbose",
+                    "content-type": "application/json;odata=verbose",
+                    "X-RequestDigest": $("#__REQUESTDIGEST").val()
+                }
+            });
+            call.done(function (result) {
+                reactHandler.RetrieveSPData(ListName);
+                reactHandler.CloseModalWindow();
+            })
+            call.fail(function (error) {
+                console.log(error.statusText);
+            });
+        }
+        else
+        {
+            $('.ValidationError').html(ErrorMessage);
+        }
+    }
+
+    MoveAgenda(){
+        var reactHandler = this;
+        var datastored = "";
+        var URL = "";
+        var month = $('#meetingDate').val().slice($('#meetingDate').val().indexOf('/') + 1,$('#meetingDate').val().length - 5);
+        var year = $('#meetingDate').val().slice($('#meetingDate').val().length-4,$('#meetingDate').val().length);
+        var date = $('#meetingDate').val().slice(0,$('#meetingDate').val().indexOf('/'));
+        function moveData(_listName, _itemID) {
+            URL = _spPageContextInfo.webAbsoluteUrl+"/_api/web/lists/GetByTitle('"+ _listName +"')/items(" + _itemID + ")";
+            datastored = JSON.stringify({
+                '__metadata': {
+                    'type': 'SP.Data.'+ _listName.replace(/ /g,'_x0020_') +'ListItem'
+                },
+                'EventDate' : ""+ month +"/"+ date +"/"+ year +"",
+            });
+            if(_listName == ""){
+                URL = _spPageContextInfo.webAbsoluteUrl + "/_api/web/GetFileByServerRelativeUrl('"+ _itemID +"')/ListItemAllFields";
+                datastored = JSON.stringify({
+                    '__metadata': {
+                        'type': 'SP.Data.'+ LISTNAMES.MEETINGDOCUMENTS.replace(/ /g,'_x0020_') +'Item'
+                    },
+                    'EventDate' : ""+ month +"/"+ date +"/"+ year +"",
+                });
+            }
+
+            return $.ajax({
+                url: URL,
+                type: "POST",
+                data: datastored,
+                headers:{
+                    "X-RequestDigest" : $("#__REQUESTDIGEST").val(),
+                    "IF-MATCH": "*",
+                    "X-HTTP-Method":"MERGE",
+                    "accept": "application/json;odata=verbose",
+                    "content-type": "application/json;odata=verbose",
+                    // "content-length":"length of post body"
+                },
+                success: function (resultData) {
+                    // console.log(resultData);
+                },
+                error: function (jqXHR, textStatus, errorThrown) {
+
+                }
+            });
+        }
+        var Updateinfoobj = [];
+        var feedPromises = [];
+        // Updateinfoobj.push({
+        //     ListName: LISTNAMES.AGENDALIST,
+        //     ItemID: ItemData[0].ID
+        // });
+        feedPromises.push(moveData(LISTNAMES.AGENDALIST, ItemData[0].ID));
+        var filteredResults = $.grep(reactHandler.state.ACTIONDATA,function(value, index){ return value.AgendaID == ItemData[0].ID });
+        filteredResults = filteredResults.concat($.grep(reactHandler.state.LINKDATA,function(value, index){ return value.AgendaID == ItemData[0].ID }));
+        filteredResults = filteredResults.concat($.grep(reactHandler.state.MEETINGDOCUMENTSDATA,function(value, index){ return value.ListItemAllFields.AgendaID == ItemData[0].ID }));
+        $.each(filteredResults, function(index, value){
+            var temp = value.length == undefined ? value.__metadata.type : (value.length == 0 ? "" : value[0].__metadata.type);
+            var list = temp.slice(8, temp.length).replace('ListItem','').replace(/_x0020_/g,' ');
+            if(list == ""){
+                // Updateinfoobj.push({
+                //     ListName: list,
+                //     ItemID: value.ServerRelativeUrl
+                // });
+                feedPromises.push(moveData(list, value.ServerRelativeUrl));
+            }
+            else{
+                // Updateinfoobj.push({
+                //     ListName: list,
+                //     ItemID: value.ID
+                // });
+                feedPromises.push(moveData(list, value.ID));
+            }
+        });
+        
+        // $.each(Updateinfoobj, function (index, value) {
+        //     feedPromises.push(moveData(value.ListName, value.ItemID));
+        // });
+        // wait until all the feeds return data to continue
+        $.when.apply(this, feedPromises)
+            .done(function () {
+                // when all the data calls are successful you can access the data via
+                reactHandler.RetrieveSPData();
+                reactHandler.CloseModalWindow();
+            });
+    }
+
+    DeleteItems(ListName, listitemID){
+        var reactHandler = this;
+        if(confirm('Are you sure you want to remove this item ?'))
+        {
+            function deleteData(_listName, _itemID) {
+                var URL = _spPageContextInfo.webAbsoluteUrl+"/_api/web/lists/GetByTitle('"+ _listName +"')/items(" + _itemID + ")";
+                if(_listName == ""){
+                    URL = _spPageContextInfo.webAbsoluteUrl + "/_api/web/GetFileByServerRelativeUrl('"+ _itemID +"')";
+                }
+                return $.ajax({
+                    url: URL,
+                    type: "POST",
+                    headers: {  
+                        "Accept": "application/json;odata=verbose",  
+                        "X-RequestDigest": $("#__REQUESTDIGEST").val(),  
+                        "IF-MATCH": "*",  
+                        "X-HTTP-Method": "DELETE",  
+                    },
+                    success: function (resultData) {
+                        // console.log(resultData);
+                    },
+                    error: function (jqXHR, textStatus, errorThrown) {
+
+                    }
+                });
+            }
+            // var Deleteinfoobj = [];
+            var feedPromises = [];
+            switch(ListName){
+                case LISTNAMES.AGENDALIST:
+                    listitemID = $('#agendaID').val();
+                    // Deleteinfoobj.push({
+                    //     ListName: LISTNAMES.AGENDALIST,
+                    //     ItemID: listitemID
+                    // });
+                    var filteredResults = $.grep(reactHandler.state.ACTIONDATA,function(value, index){ return value.AgendaID == listitemID });
+                    filteredResults = filteredResults.concat($.grep(reactHandler.state.ACTIONCOMMENTSDATA,function(value, index){ return value.AgendaID == listitemID }));
+                    filteredResults = filteredResults.concat($.grep(reactHandler.state.LINKDATA,function(value, index){ return value.AgendaID == listitemID }));
+                    filteredResults = filteredResults.concat($.grep(reactHandler.state.MEETINGDOCUMENTSDATA,function(value, index){ return value.ListItemAllFields.AgendaID == listitemID }));
+                    feedPromises.push(deleteData(LISTNAMES.AGENDALIST, listitemID));
+                    $.each(filteredResults, function(index, value){
+                        var temp = value.length == undefined ? value.__metadata.type : (value.length == 0 ? "" : value[0].__metadata.type);
+                        var list = temp.slice(8, temp.length).replace('ListItem','').replace(/_x0020_/g,' ');
+                        if(list == ""){
+                            // Deleteinfoobj.push({
+                            //     ListName: list,
+                            //     ItemID: value.ServerRelativeUrl
+                            // });
+                            feedPromises.push(deleteData(list, value.ServerRelativeUrl));
+                        }
+                        else{
+                            // Deleteinfoobj.push({
+                            //     ListName: list,
+                            //     ItemID: value.ID
+                            // });
+                            feedPromises.push(deleteData(list, value.ID));
+                        }
+                    });
+                    break;
+
+                case LISTNAMES.ACTIONLIST:
+                    listitemID = $('#actionID').val();
+                    // Deleteinfoobj.push({
+                    //     ListName: LISTNAMES.ACTIONLIST,
+                    //     ItemID: listitemID
+                    // });
+                    var filteredResults = $.grep(reactHandler.state.ACTIONCOMMENTSDATA,function(value, index){ return value.ActionID == listitemID });
+                    feedPromises.push(deleteData(LISTNAMES.ACTIONLIST, listitemID));
+                    $.each(filteredResults, function(index, value){
+                        var temp = value.length == undefined ? value.__metadata.type : (value.length == 0 ? "" : value[0].__metadata.type);
+                        var list = temp.slice(8, temp.length).replace('ListItem','').replace(/_x0020_/g,' ');
+                        // Deleteinfoobj.push({
+                        //     ListName: list,
+                        //     ItemID: value.ID
+                        // });
+                        feedPromises.push(deleteData(list, value.ID));
+                    });
+                    break;
+
+                case LISTNAMES.ACTIONCOMMENTSLIST:
+                    // Deleteinfoobj.push({
+                    //     ListName: ListName,
+                    //     ItemID: listitemID
+                    // });
+                    feedPromises.push(deleteData(ListName, listitemID));
+                    break;
+
+                case LISTNAMES.LINKLIST:
+                    // Deleteinfoobj.push({
+                    //     ListName: ListName,
+                    //     ItemID: listitemID
+                    // });
+                    feedPromises.push(deleteData(ListName, listitemID));
+                    break;
+
+                default:
+                    // Deleteinfoobj.push({
+                    //     ListName: "",
+                    //     ItemID: ListName
+                    // });
+                    feedPromises.push(deleteData("", ListName));
+                    panelActive = listitemID;
+                    break;
+            }
+            
+
+            // $.each(Deleteinfoobj, function (index, value) {
+            //     feedPromises.push(deleteData(value.ListName, value.ItemID));
+            // });
+            // wait until all the feeds return data to continue
+            $.when.apply(this, feedPromises)
+                .done(function () {
+                    // when all the data calls are successful you can access the data via
+                    reactHandler.RetrieveSPData();
+                    reactHandler.CloseModalWindow();
+                });
+        }
+    }
+
+    EditCalendarDetails(){
+        var reactHandler = this;
+        function retrieveAttachments(){
+            clearInterval(myInterval);
+            reactHandler.RetrieveSPData(LISTNAMES.CALENDARLIST);
+            reactHandler.CloseModalWindow();
+        }
+        var options = {
+            url: _spPageContextInfo.webAbsoluteUrl + '/Lists/'+ LISTNAMES.CALENDARLIST +'/EditForm.aspx?ID='+ ItemID +'',
+            title: 'Edit Meeting Details',
+            width: 700,
+            height: 400,
+            dialogReturnValueCallback: retrieveAttachments
+        };
+        SP.UI.ModalDialog.showModalDialog(options);
+        var myInterval = setInterval(function(){ 
+            $('.ms-dlgFrame').contents().find("head").append($("<style type='text/css'> #s4-ribbonrow {display: none;}table.ms-formtoolbar:nth-child(2) .ms-toolbar:nth-child(1) {visibility: hidden;}table.ms-formtoolbar:nth-child(2) .ms-toolbar input {text-transform: uppercase;cursor: pointer;width: 120px;font-weight: bold;}table.ms-formtoolbar:nth-child(2) .ms-toolbar:nth-child(3) input {color: white;background-color: #3f92d2;}table.ms-formtoolbar:nth-child(2) .ms-toolbar:nth-child(5) input {color: white;background-color: darkgrey;}table.ms-formtable tr:nth-child(6) {display: none;}#recurCustomDiv table.ms-formrecurrence:nth-child(1) table.ms-formrecurrence tr:nth-child(1) {display: none;}#recurCustomDiv table.ms-formrecurrence:nth-child(1) table.ms-formrecurrence tr:nth-child(3) table tr:nth-child(1) {display: block;} </style>"));
+            
+         }, 500);
+         setTimeout(function(){
+            clearInterval(myInterval);
+         }, 2000);
+    }
+
+    AddAttachment(){
+
+        var flag = true;
+        var reactHandler = this;
+        var datastored = "";
+        var ErrorMessage = "";
+        var month = $('.timeline').find('a.selected').data().date.slice($('.timeline').find('a.selected').data().date.indexOf('/') + 1,$('.timeline').find('a.selected').data().date.length - 5);
+        var year = $('.timeline').find('a.selected').data().date.slice($('.timeline').find('a.selected').data().date.length-4,$('.timeline').find('a.selected').data().date.length);
+        var date = $('.timeline').find('a.selected').data().date.slice(0,$('.timeline').find('a.selected').data().date.indexOf('/'));
+        var EventDate = ""+ month +"/"+ date +"/"+ year +"";
+        var AgendaID = $('#agenda4ID').val();
+        // Define the folder path for this example.
+        var serverRelativeUrlToFolder = 'Meeting%20Documents/' + ItemID;
+        var fileInput = jQuery('#AddAttachment');
+        var parts = fileInput[0].value.split('\\');
+        var fileName = parts[parts.length - 1];
+        var duplicateFiles = $.grep(this.state.MEETINGDOCUMENTSDATA, function(value){
+            var eventDate = value.ListItemAllFields.EventDate == null ? "" : "" + (new Date(value.ListItemAllFields.EventDate).getMonth() + 1) + "/" + new Date(value.ListItemAllFields.EventDate).getDate() + "/" + new Date(value.ListItemAllFields.EventDate).getFullYear() +"";
+            return (value.Title == fileName && value.ListItemAllFields.AgendaID == AgendaID && eventDate == EventDate) 
+        });
+        if($('#AddAttachment').val() == ""){
+            flag = false;
+            ErrorMessage = "Please select a file";
+        }
+        if(duplicateFiles.length > 0){
+            flag = false;
+            ErrorMessage = "Selected file already exists";
+        }
+        if(flag)
+        {
+            //ShowWaitScreen();
+            $('.ValidationError').html('');
+            $('#progressbar').parent().parent().show();
+            $('#AttachmentForm .close').css('pointer-events','none');
+            $('#AttachmentForm button').css('pointer-events','none');
+            $('#AddAttachment').css('pointer-events','none');
+            function onError(error){
+                    console.log(error);
+                    alert(error);
+                }
+
+            // Get the server URL.
+            var serverUrl = _spPageContextInfo.webAbsoluteUrl;
+
+            // Initiate method calls using jQuery promises.
+            // Get the local file as an array buffer.
+            var getFile = getFileBuffer();
+            getFile.done(function (arrayBuffer) {
+
+                // Add the file to the SharePoint folder.
+                var addFile = addFileToFolder(arrayBuffer);
+                addFile.done(function (file, status, xhr) {
+
+                    // Get the list item that corresponds to the uploaded file.
+                    var getItem = getFileAttachment(file.d.ListItemAllFields.__deferred.uri);
+                    getItem.done(function (listItem, status, xhr) {
+
+                        // Change the display name and title of the list item.
+                        var changeItem = updateFileAttachment(listItem.d.__metadata);
+                        changeItem.done(function (data, status, xhr) {
+                            // alert('file uploaded and updated');
+                            //CloseWaitDialog();
+                            reactHandler.RetrieveSPData(LISTNAMES.MEETINGDOCUMENTS);
+                            reactHandler.CloseModalWindow();
+                        });
+                        changeItem.fail(onError);
+                    });
+                    getItem.fail(onError);
+                });
+                addFile.fail(onError);
+            });
+            getFile.fail(onError);
+
+            // Get the local file as an array buffer.
+            function getFileBuffer() {
+                var deferred = jQuery.Deferred();
+                var reader = new FileReader();
+                reader.onloadend = function (e) {
+                    deferred.resolve(e.target.result);
+                }
+                reader.onerror = function (e) {
+                    deferred.reject(e.target.error);
+                    onError(e.target.error);
+                }
+                reader.readAsArrayBuffer(fileInput[0].files[0]);
+                return deferred.promise();
+            }
+
+            // Add the file to the file collection in the Shared Documents folder.
+            function addFileToFolder(arrayBuffer) {
+
+                // Get the file name from the file input control on the page.
+                var parts = fileInput[0].value.split('\\');
+                var fileName = parts[parts.length - 1];
+
+                fileName = fileName.slice(0, fileName.lastIndexOf('.')) + "$$" + new Date().getTime() + fileName.slice(fileName.lastIndexOf('.'), fileName.length);
+
+                // Construct the endpoint.
+                var fileCollectionEndpoint = String.format(
+                        "{0}/_api/web/getfolderbyserverrelativeurl('{1}')/files" +
+                        "/add(overwrite=true, url='{2}')",
+                        serverUrl, serverRelativeUrlToFolder, fileName);
+
+                // Send the request and return the response.
+                // This call returns the SharePoint file.
+                return jQuery.ajax({
+                    xhr: function() {
+                        var xhr = new window.XMLHttpRequest();
+                    
+                        xhr.upload.addEventListener("progress", function(evt) {
+                          if (evt.lengthComputable) {
+                            var percentComplete = evt.loaded / evt.total;
+                            percentComplete = parseInt(percentComplete * 100);
+                            console.log(percentComplete);
+                            $('#progressbar')[0].value = percentComplete;
+                            // if (percentComplete === 100) {
+                    
+                            // }
+                    
+                          }
+                        }, false);
+                    
+                        return xhr;
+                      },
+                    url: fileCollectionEndpoint,
+                    type: "POST",
+                    data: arrayBuffer,
+                    processData: false,
+                    headers: {
+                        "accept": "application/json;odata=verbose",
+                        "X-RequestDigest": jQuery("#__REQUESTDIGEST").val(),
+                        // "content-length": arrayBuffer.byteLength
+                    }
+                });
+            }
+
+            // Get the list item that corresponds to the file by calling the file's ListItemAllFields property.
+            function getFileAttachment(fileListItemUri) {
+
+                // Send the request and return the response.
+                return jQuery.ajax({
+                    url: fileListItemUri,
+                    type: "GET",
+                    headers: { "accept": "application/json;odata=verbose" }
+                });
+            }
+
+            // Change the display name and title of the list item.
+            function updateFileAttachment(itemMetadata) {
+
+                // Define the list item changes. Use the FileLeafRef property to change the display name.
+                // For simplicity, also use the name as the title.
+                // The example gets the list item type from the item's metadata, but you can also get it from the
+                // ListItemEntityTypeFullName property of the list.
+
+                // var temp = fileName.split('.');
+                var titleValue = fileName;
+                //fileName = fileName.slice(0, fileName.lastIndexOf('.')) + "$$" + new Date().getTime() + fileName.slice(fileName.lastIndexOf('.'), fileName.length);
+
+                var body = String.format("{{'__metadata':{{'type':'{0}'}},'AgendaID':'{1}','EventDate':'{2}', 'Title':'{3}'}}",
+                    itemMetadata.type, AgendaID, EventDate, titleValue);
+
+                // Send the request and return the promise.
+                // This call does not return response content from the server.
+                return jQuery.ajax({
+                    url: itemMetadata.uri,
+                    type: "POST",
+                    data: body,
+                    headers: {
+                        "X-RequestDigest": jQuery("#__REQUESTDIGEST").val(),
+                        "content-type": "application/json;odata=verbose",
+                        // "content-length": body.length,
+                        "IF-MATCH": itemMetadata.etag,
+                        "X-HTTP-Method": "MERGE"
+                    }
+                });
+            }
+        }
+        else{
+            $('.ValidationError').html(ErrorMessage);
+        }
+
+    }
+
+    render(){
+        //debugger;
+        var reactHandler = this;
+        var deleteStyle;
+        if(!ISADMIN){
+            deleteStyle = {
+                display: 'none'
+            }
+        }
+        return(
+            <div className={classnames}>
+                <div className="timeline">
+                    <div className="events-wrapper">
+                        <div className="events">
+                            <ol>
+                                {
+                                    this.state.CALENDARITEMS.map(function(item,key){  
+                                            var eventdate = "" + item.EventDate.getDate() + "/" + (item.EventDate.getMonth() + 1) + "/" + item.EventDate.getFullYear() +"";
+                                            MeetingDates.push(eventdate);
+                                            if(key == 0)
+                                            {
+                                                return (<li key={key}>
+                                                    <a href="#0" data-date={eventdate} className="selected">{eventdate}</a>
+                                                </li>);  
+                                            }
+                                            else{
+                                                return (<li key={key}>
+                                                    <a href="#0" data-date={eventdate}>{eventdate}</a>
+                                                </li>);  
+                                            }
+
+                                    })
+                                }
+                            </ol>
+                            <span className="filling-line" aria-hidden="true"></span>
+                        </div>
+                    </div>
+                    <ul className="cd-timeline-navigation">
+                        <li><a href="#0" className="prev inactive">
+                                <span className="i-arrows-diagrams-arrows-arrow-thick-circle-left-1"></span>
+                            </a></li>
+                        <li><a href="#0" className="next">
+                                <span className="i-arrows-diagrams-arrows-arrow-thick-circle-right-1"></span>
+                            </a></li>
+                    </ul>
+                </div>
+                <div className="meeting-details">
+                    <div id="meetingInfo">
+                        <div className="meeting-header">
+                            <h2>{this.state.CALENDARDATA.Title}</h2>
+                        </div>
+                        <table className="maininfo">
+                            <tbody>
+                                <tr>
+                                    <td className="left font-v">
+                                        <span>Organizers:</span>
+                                    </td>
+                                    <td className="leftContent" colSpan={3}>
+                                        <div title={this.state.CALENDARDATA.Author == undefined ? "" : this.state.CALENDARDATA.Author.Title}>
+                                            <img className="empty" alt="No image" src={buildProfilepic(this.state.CALENDARDATA.Author)}/>
+                                        </div>
+                                        <div style={deleteStyle}  onClick={this.EditCalendarDetails} className="calendar-edit-icon icon-right">
+                                            <div className="item">
+                                                <span className="i-interface-essential-setting-cog icon-button" title="Edit"></span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td className="left font-v">
+                                        <span>Start Time:</span>
+                                    </td>
+                                    <td className="leftContent">
+                                        {/* <div className="leftside">
+                                            <div className="tcalendar_view_wrap"><span title={this.EventsFormatDate(this.state.CALENDARDATA.EventDate)}>{this.EventsFormatDate(this.state.CALENDARDATA.EventDate)}</span></div>
+                                        </div> */}
+                                        <div className="rightside">
+                                            <div className="tinputcombobox_view_wrap"><span title={this.EventsFormatTime(this.state.CALENDARDATA.EventDate)}>{this.EventsFormatTime(this.state.CALENDARDATA.EventDate)}</span></div>
+                                        </div>
+                                    </td>
+                                    <td className="left font-v">
+                                        <span>End Time:</span>
+                                    </td>
+                                    <td className="rightContent">
+                                        {/* <div className="leftside">
+                                            <div className="tcalendar_view_wrap"><span title={this.EventsFormatDate(this.state.CALENDARDATA.EndDate)}>{this.EventsFormatDate(this.state.CALENDARDATA.EndDate)}</span></div>
+                                        </div> */}
+                                        <div className="rightside">
+                                            <div className="tinputcombobox_view_wrap"><span title={this.EventsFormatTime(this.state.CALENDARDATA.EndDate)}>{this.EventsFormatTime(this.state.CALENDARDATA.EndDate)}</span></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td className="left font-v">
+                                        <span>Location:</span>
+                                    </td>
+                                    <td className="rightContent" colSpan={3}>
+                                        <span title={this.state.CALENDARDATA.Location}>{this.state.CALENDARDATA.Location}</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td className="left font-v">
+                                        <span>Attendees:</span>
+                                    </td>
+                                    <td className="rightContent" colSpan={3}>
+                                            <ComponentAttendees data={this.state.CALENDARDATA}/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td className="left font-v">
+                                        <span>Description:</span>
+                                    </td>
+                                    <td className="rightContent" colSpan={3}>
+                                        <div className="ttxt_view_wrap showMore">
+                                            <div className="richtextboxDiv">
+                                                <div>
+                                                    <p>
+                                                        <span><div dangerouslySetInnerHTML={{ __html: this.state.CALENDARDATA.Description }}></div></span>
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="agenda-control" className="control">
+                        <div className="item" title="Add a new agenda to this meeting." onClick={this.NewAgendaForm}>
+                            <span className="i-files-folders-common-files-common-file-add icon"></span>
+                            <span className="text">New Agenda</span>
+                        </div>
+                        <div className="item CollapseAll" title="Collapse All">
+                            <span className="i-arrows-diagrams-arrows-arrow-rectangle-up icon"></span>
+                            <span className="text">Collapse All</span>
+                        </div>
+                        <div className="item ExpandAll" title="Expand All">
+                            <span className="i-arrows-diagrams-arrows-arrow-rectangle-down icon"></span>
+                            <span className="text">Expand All</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="events-content">
+                    <ol>
+                        {
+                            this.state.CALENDARITEMS.map((item, key) => {
+                                //debugger;
+                                var eventdate = "" + item.EventDate.getDate() + "/" + (item.EventDate.getMonth() + 1) + "/" + item.EventDate.getFullYear() +"";
+                                var classnames = "";
+                                // var agendaEventDate = "" + this.state.agenda.Created.getDate() + "/" + (this.state.agenda.Created.getMonth() + 1) + "/" + this.state.agenda.Created.getFullYear() +"";
+                                if(key == 0)
+                                {
+                                    classnames = "Timelineli selected";
+                                }
+                                else{
+                                    classnames = "Timelineli hidecontent";
+                                }
+                                return (<li key={key} className={classnames} data-date={eventdate}>
+                                    <ContainerComponents count={key} AGENDADATA={this.state.AGENDADATA} ACTIONDATA={this.state.ACTIONDATA} ACTIONCOMMENTSDATA={this.state.ACTIONCOMMENTSDATA} MEETINGDOCUMENTSDATA={this.state.MEETINGDOCUMENTSDATA} LINKDATA={this.state.LINKDATA} eventdate={eventdate} DeleteItems={this.DeleteItems}/>
+                                </li>);
+                            })
+                        }
+                    </ol>
+                </div>
+                <div>
+                    <ComponentModalWindows  agenda={this.CreateUpdateItemData} closure={this.CloseModalWindow} DeleteItems={this.DeleteItems} AddAttachment={this.AddAttachment}/>
+                </div>
+            </div>
+        );
+    }
+}
+
+class ComponentAttendees extends React.Component{
+    render(){
+        // if(this.props.data != undefined && this.props.data.ParticipantsPicker.results != undefined)
+        if(this.props.data != undefined && this.props.data.length != 0)
+        {
+            return(
+                <div className="attendees">
+                {
+                    this.props.data && this.props.data.ParticipantsPicker.results.map(function(item,key){
+
+                        return(
+                            <div key={key} className="rollcall-item" title={item.Title}>
+                                <img alt="No image" src={buildProfilepic(item)}/>
+                            </div>
+                        );
+    
+                    })
+                }
+                </div>
+            );
+        }
+        else
+        {
+            return(
+                <div className="attendees"></div>
+            );
+        }
+    }
+}
+
+class ComponentModalWindows extends React.Component{
+    movetonextmeeting(e){
+        if(e.target.value == "Move to Future Meeting"){
+            $('#meetingDate').html('');
+            var month = $('.timeline').find('a.selected').data().date.slice($('.timeline').find('a.selected').data().date.indexOf('/') + 1,$('.timeline').find('a.selected').data().date.length - 5);
+            var year = $('.timeline').find('a.selected').data().date.slice($('.timeline').find('a.selected').data().date.length-4,$('.timeline').find('a.selected').data().date.length);
+            var date = $('.timeline').find('a.selected').data().date.slice(0,$('.timeline').find('a.selected').data().date.indexOf('/'));
+            var currentTimeline = ""+ month +"/"+ date +"/"+ year +"";
+            var future_dates = $.grep(MeetingDates, function(value, index){ 
+                var month = value.slice(value.indexOf('/') + 1,value.length - 5);
+                var year = value.slice(value.length-4,value.length);
+                var date = value.slice(0,value.indexOf('/'));
+                var iterateTimeline = ""+ month +"/"+ date +"/"+ year +"";
+                return (new Date(iterateTimeline) > new Date(currentTimeline)) });
+            $.each(future_dates, function(index, value){
+
+                // var temp = new Date();
+                // var todaysDate = temp == null ? "" : "" + (new Date(temp).getMonth() + 1) + "/" + new Date(temp).getDate() + "/" + new Date(temp).getFullYear() +"";
+
+                // month = value.slice(value.indexOf('/') + 1,value.length - 5);
+                // year = value.slice(value.length-4,value.length);
+                // date = value.slice(0,value.indexOf('/'));
+
+                // var iterateTimeline = ""+ month +"/"+ date +"/"+ year +"";
+
+                // if(new Date(iterateTimeline) > new Date(currentTimeline))
+                // {
+                //     $('#meetingDate').append($("<option     />").val(value).text(value));
+                // }
+                $('#meetingDate').append($("<option     />").val(value).text(value));
+            });
+            this.setState({
+                meetingdateStyle: 'table-row'
+            });
+        }
+        else{
+            $('#meetingDate').html('');
+            this.setState({
+                meetingdateStyle: 'none'
+            });
+        }
+    }
+    constructor(props){  
+        super(props);  
+          this.state = {
+                meetingdateStyle: 'none'
+            };
+
+            this.movetonextmeeting = this.movetonextmeeting.bind(this);
+    }
+    render(){
+        const meetingdateStyle = {
+            display: this.state.meetingdateStyle
+        }
+        return(
+            <div className="modal-popup">
+                <div id="AgendaForm" className="modal">
+                    <div className="modal-content">
+                        <span className="close" onClick={this.props.closure}>&times;</span>
+                        <table className="modal-form">
+                            <tbody>
+                                <tr className="hidecontent">
+                                    <td colSpan="3">
+                                        <input id="agendaID" type="text"></input>
+                                    </td>
+                                </tr>   
+                                <tr>
+                                    <td>
+                                        <label className="fieldlbl">Agenda Title:</label>
+                                    </td>
+                                    <td colSpan="2">
+                                        <input type="text" id="AgendaTitle"></input>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <label className="fieldlbl">Estimated Time (mins):</label>
+                                    </td>
+                                    <td colSpan="2">
+                                        <input type="number" placeholder="In Minutes" id="NewAgendaEstimatedTime"></input>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <label className="fieldlbl">Status:</label>
+                                    </td>
+                                    <td colSpan="2">
+                                        <select onChange={this.movetonextmeeting} id="agendaStatus" name="status">
+                                            <option value="Inprogress">Inprogress</option>
+                                            <option value="Completed">Completed</option>
+                                            <option value="Move to Future Meeting">Move to Future Meeting</option>
+                                        </select>
+                                    </td>
+                                </tr>
+                                <tr style={meetingdateStyle}>
+                                    <td>
+                                        <label className="fieldlbl">Meeting Dates:</label>
+                                    </td>
+                                    <td colSpan="2">
+                                        <select id="meetingDate" name="meetingdate">
+                                        </select>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <button id="Savebtn" type="button" text="Save" onClick={() => this.props.agenda(LISTNAMES.AGENDALIST)}>Save</button>
+                                    </td>
+                                    <td>
+                                        <button id="Closebtn" type="button" text="Close" onClick={this.props.closure}>Close</button>
+                                    </td>
+                                    <td>
+                                        <button id="Deletebtn" type="button" text="Delete" onClick={() => this.props.DeleteItems(LISTNAMES.AGENDALIST, 0)}>Delete</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td colSpan="3">
+                                        <label className="ValidationError"></label>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="ActionForm" className="modal">
+                    <div className="modal-content">
+                    <span className="close" onClick={this.props.closure}>&times;</span>
+                        <table className="modal-form">
+                            <tbody>
+                                <tr className="hidecontent">
+                                    <td colSpan="3">
+                                        <input id="agenda2ID" type="text"></input>
+                                    </td>
+                                </tr>
+                                <tr className="hidecontent">
+                                    <td colSpan="3">
+                                        <input id="actionID" type="text"></input>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <label className="fieldlbl">Action Title:</label>
+                                    </td>
+                                    <td colSpan="2">
+                                        <input type="text" id="ActionTitle"></input>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <label className="fieldlbl">Status:</label>
+                                    </td>
+                                    <td colSpan="2">
+                                        <select id="actionStatus" name="status">
+                                            <option value="Not Started">Not Started</option>
+                                            <option value="Waiting on Someone Else">Waiting on Someone Else</option>
+                                            <option value="Inprogress">Inprogress</option>
+                                            <option value="Deferred">Deferred</option>
+                                            <option value="Completed">Completed</option>
+                                        </select>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <label className="fieldlbl">Start Date:</label>
+                                    </td>
+                                    <td colSpan="2">
+                                        <input type="text" id="startDate"></input>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <label className="fieldlbl">Due Date:</label>
+                                    </td>
+                                    <td colSpan="2">
+                                        <input type="text" id="endDate"></input>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <label className="fieldlbl">Description:</label>
+                                    </td>
+                                    <td colSpan="2">
+                                        <textarea id="Actiondescrip" rows="4" cols="30"></textarea>
+                                    </td>
+                                </tr>
+                                {/* <tr>
+                                    <td>
+                                        <label className="fieldlbl">Assigned To:</label>
+                                    </td>
+                                    <td>
+                                        <div id="peoplePickerDiv"></div>
+                                    </td>
+                                </tr> */}
+                                <tr>
+                                    <td>
+                                        <button id="Savebtn" type="button" text="Save" onClick={() =>  this.props.agenda(LISTNAMES.ACTIONLIST)}>Save</button>
+                                    </td>
+                                    <td>
+                                        <button id="Closebtn" type="button" text="Close" onClick={this.props.closure}>Close</button>
+                                    </td>
+                                    <td>
+                                        <button id="Deletebtn" type="button" text="Delete" onClick={() => this.props.DeleteItems(LISTNAMES.ACTIONLIST, 0)}>Delete</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td colSpan="3">
+                                        <label className="ValidationError"></label>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="ActionCommentForm" className="modal">
+                    <div className="modal-content">
+                        <span className="close" onClick={this.props.closure}>&times;</span>
+                        <table className="modal-form">
+                            <tbody>
+                                <tr className="hidecontent">
+                                    <td colSpan="2">
+                                        <input id="action2ID" type="text"></input>
+                                    </td>
+                                </tr>
+                                <tr className="hidecontent">
+                                    <td colSpan="2">
+                                        <input id="agenda3ID" type="text"></input>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <label className="fieldlbl">Comment:</label>
+                                    </td>
+                                    <td>
+                                        <textarea id="ActionComment" rows="4" cols="30"></textarea>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <button id="Savebtn" type="button" text="Add" onClick={() => this.props.agenda(LISTNAMES.ACTIONCOMMENTSLIST)}>Add</button>
+                                    </td>
+                                    <td>
+                                        <button id="Closebtn" type="button" text="Close" onClick={this.props.closure}>Close</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td colSpan="3">
+                                        <label className="ValidationError"></label>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="AttachmentForm" className="modal">
+                    <div className="modal-content">
+                        <span className="close" onClick={this.props.closure}>&times;</span>
+                        <table className="modal-form">
+                            <tbody>
+                                <tr className="hidecontent">
+                                    <td colSpan="2">
+                                        <input id="agenda4ID" type="text"></input>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <label className="fieldlbl">Name:</label>
+                                    </td>
+                                    <td>
+                                        <input type="file" id="AddAttachment"></input>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <button id="Savebtn" type="button" text="Save" onClick={this.props.AddAttachment}>Upload</button>
+                                    </td>
+                                    <td>
+                                        <button id="Closebtn" type="button" text="Close" onClick={this.props.closure}>Close</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td colSpan="2">
+                                        Uploading progress:  <progress id="progressbar" value="0" max="100"></progress><div className="loader"></div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td colSpan="2">
+                                        <label className="ValidationError"></label>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="LinkForm" className="modal">
+                    <div className="modal-content">
+                        <span className="close" onClick={this.props.closure}>&times;</span>
+                        <form>
+                            <table className="modal-form">
+                                <tbody>
+                                    <tr className="hidecontent">
+                                        <td colSpan="2">
+                                            <input id="agenda4ID" type="text"></input>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <label className="fieldlbl">Title:</label>
+                                        </td>
+                                        <td>
+                                            <input id="linktitle" type="text"></input>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <label className="fieldlbl">URL:</label>
+                                        </td>
+                                        <td>
+                                            <input id="linkurl" type="text"></input>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <button id="Savebtn" type="button" text="Add" onClick={() => this.props.agenda(LISTNAMES.LINKLIST)}>Add</button>
+                                        </td>
+                                        <td>
+                                            <button id="Closebtn" type="button" text="Close" onClick={this.props.closure}>Close</button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td colSpan="3">
+                                            <label className="ValidationError"></label>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+}
+
+class ActionCommentsComponent extends React.Component{
+    DeletetheComment(_listName, _itemID, _index){
+        panelActive = _index;
+        this.props.DeleteItems(_listName, _itemID);
+    }
+    EditActionCommentsDetails = (_commentsID, _index) => {
+        panelActive = _index;
+        ItemData = $.grep(this.props.ACTIONCOMMENTSDATA,function(value, index){ return value.ID == _commentsID });
+        $('#ActionComment').val(ItemData[0].Comments);
+        $('#action2ID').val(ItemData[0].ActionID);
+        $('#agenda3ID').val(ItemData[0].AgendaID);
+        $('#ActionCommentForm').css('display','block');
+    }
+    render(){
+        const actionComments = this.props.ACTIONCOMMENTSDATA.filter((item,key)=>{
+            return this.props.ActionID == item.ActionID;
+        }).map((item,key) => {
+            var moddate = new Date(item.Modified);
+            var modifiedDate = item.Modified == null ? "" : "" + new Date(item.Modified).getDate() + "/" + (new Date(item.Modified).getMonth() + 1) + "/" + new Date(item.Modified).getFullYear() +"";
+            var hours = moddate.getHours() < 10 ? "0" + moddate.getHours() : moddate.getHours();
+            var mintues = moddate.getMinutes() < 10 ? "0" + moddate.getMinutes() : moddate.getMinutes();
+            var deleteStyle;
+            if(!ISADMIN && item.AuthorId != _spPageContextInfo.userId){
+                deleteStyle = {
+                    display: 'none'
+                }
+            }
+            return(
+                <div key={key} className="comments-item">
+                    <div className="desc-view">{item.Comments}</div>
+                    <div className="top">
+                        {/* <img className="header" src="https://mysite.sp.wp.corpintra.net/_layouts/15/images/PersonPlaceholder.96x96x32.png" draggable="false"/> */}
+                        <span className="sub-created font-v">{item.Editor.Title} added a comment - {modifiedDate} {hours}:{mintues}</span>
+                        <div className="icons">
+                            <div className="item" style={deleteStyle} onClick={() => this.EditActionCommentsDetails(item.ID, this.props.Window)}>
+                                <span className="i-interface-essential-form-edition-pencil-write-3-alternate" title="Edit"></span>
+                            </div>
+                            <div className="item" style={deleteStyle} onClick={() => this.DeletetheComment(LISTNAMES.ACTIONCOMMENTSLIST, item.ID, this.props.Window)}>
+                                <span className="i-interface-essential-delete-bin" title="Delete"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        });
+        return(
+            <div className="comments-wrap">
+                {actionComments}
+            </div>
+        );
+    }
+}
+
+class AgendaLinkComponents extends React.Component{
+    EditLinksDetails(_linkItemID, _index){
+        panelActive = _index;
+        ItemData = $.grep(this.props.LINKDATA,function(value, index){ return value.ID == _linkItemID });
+        $('#linkurl').val(ItemData[0].LinkURL.Url);
+        $('#linktitle').val(ItemData[0].Title);
+        $('#agenda4ID').val(ItemData[0].AgendaID);
+        $('#LinkForm').css('display','block');
+    }
+    render(){
+        const agendaLink = this.props.LINKDATA.filter((item,key)=>{
+            var eventDate = item.EventDate == null ? "" : "" + new Date(item.EventDate).getDate() + "/" + (new Date(item.EventDate).getMonth() + 1) + "/" + new Date(item.EventDate).getFullYear() +"";
+            return (item.AgendaID == this.props.AgendaID && this.props.eventdate == eventDate);
+        }).map((item,key) => {
+            var createdDate = item.Created == null ? "" : "" + new Date(item.Created).getDate() + "/" + (new Date(item.Created).getMonth() + 1) + "/" + new Date(item.Created).getFullYear() +"";
+            var deleteStyle;
+            if(!ISADMIN && item.AuthorId != _spPageContextInfo.userId){
+                deleteStyle = {
+                    display: 'none'
+                }
+            }
+            return(
+                <li key={key} className="subcontent-wrap">
+                    <a draggable="false"></a>
+                    <div className="note-wrap sub-wrap">
+                        <div className="left-icon">
+                            <span
+                                className="sub-icon i-messages-chat-smileys-messages-speech-bubbles-messages-bubble-double-alternate"></span>
+                            <span className="block-name font-v">
+                                Link
+                            </span>
+                        </div>
+                        <div className="sub-block">
+                            <div className="sub-title">
+                                <a target="_blank" href={item.LinkURL.Url} title={item.Title} draggable="false">{item.Title}</a>
+                            </div>
+                            <div className="sub-created font-v">
+                                <span>Created at</span>
+                                <span> {createdDate}</span>
+                                <span> By</span>
+                                <span> {item.Author.Title}</span>
+                            </div>
+                            <div className="right icon-right">
+                                <div className="item" style={deleteStyle} onClick={() => this.EditLinksDetails(item.ID, this.props.Window)}>
+                                    <span className="i-interface-essential-form-edition-pencil-write-3-alternate icon-button" title="Edit"></span>
+                                </div>
+                                <div style={deleteStyle} className="item" onClick={() => this.props.DeleteItems(LISTNAMES.LINKLIST, item.ID)}>
+                                    <span className="i-interface-essential-delete-bin icon-button" title="Delete"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </li>
+            );
+        });
+        return(
+                <li className="subcontent-wrap">
+                    {agendaLink}
+                </li>
+        );
+    }
+}
+
+class AgendaAttachmentComponents extends React.Component{
+    render(){
+            const attachmentContent = this.props.MEETINGDOCUMENTSDATA.filter((item,key)=>{
+                var itemEventdate = item.ListItemAllFields.EventDate == null ? "" : "" + new Date(item.ListItemAllFields.EventDate).getDate() + "/" + (new Date(item.ListItemAllFields.EventDate).getMonth() + 1) + "/" + new Date(item.ListItemAllFields.EventDate).getFullYear() +"";
+                return (item.ListItemAllFields.AgendaID == this.props.AgendaID && itemEventdate == this.props.eventdate)
+            }).map((item,key)=>{
+                var createdDate = item.TimeCreated == null ? "" : "" + new Date(item.TimeCreated).getDate() + "/" + (new Date(item.TimeCreated).getMonth() + 1) + "/" + new Date(item.TimeCreated).getFullYear() +"";
+                var fileName = item.Name.split('$$')[0];
+                var fileFormat = item.Name.split('$$')[1].split('.')[1];
+                fileName = fileName + "." + fileFormat;
+                var deleteStyle;
+                if(!ISADMIN && item.ListItemAllFields.AuthorId != _spPageContextInfo.userId){
+                    deleteStyle = {
+                        display: 'none'
+                    }
+                }
+                return(
+                    <li key={key} className="subcontent-wrap">
+                        <div className="attachment-wrap sub-wrap">
+                            <div className="left-icon">
+                                <span className="sub-icon i-interface-essential-link-unlink-hyperlink-3"></span>
+                                <span className="block-name font-v">
+                                    Attachment
+                                </span>
+                            </div>
+                            <div className="sub-block">
+                                <div className="attachment-title">
+                                    <div className="att-title font-v">
+                                        <a target="_blank" download={fileName} href={item.ServerRelativeUrl}>{fileName}</a>
+                                    </div>
+                                </div>
+                                <div className="sub-created font-v">
+                                    <span>Uploaded by </span>
+                                    {/* <span>{createdDate}</span> */}
+                                    <span>{item.Author.Title}</span>
+                                    <span> - {createdDate}</span>
+                                </div>
+                                <div className="right icon-right">
+                                    <div className="item">
+                                    <a target="_blank" download={fileName} href={item.ServerRelativeUrl}>
+                                        <span className="i-internet-networks-servers-upload-download-download-bottom  icon-button" title="Download"></span>    
+                                    </a>
+                                    </div>
+                                    <div style={deleteStyle} className="item" onClick={() => this.props.DeleteItems(item.ServerRelativeUrl, this.props.Window)}>
+                                        <span className="i-interface-essential-delete-bin icon-button" title="Delete"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+                );
+            
+            });
+        return(
+            <li className="subcontent-wrap">
+                {attachmentContent}
+            </li>
+        );
+    }
+}
+
+class ActionComponent extends React.Component{
+    NewActionCommentForm(_actionID, _agendaID, _index){
+        panelActive = _index;
+        $('#action2ID').val(_actionID);
+        $('#agenda3ID').val(_agendaID);
+        $('#ActionCommentForm').css('display','block');
+    }
+    EditActionDetails = (_actionID, _index) => {
+        panelActive = _index;
+        ItemData = $.grep(this.props.ACTIONDATA,function(value, index){ return value.ID == _actionID });
+        $('#startDate').datepicker();
+        $('#endDate').datepicker();
+        $('#startDate').datepicker( "option", "dateFormat", "dd/mm/yy" );
+        $('#endDate').datepicker( "option", "dateFormat", "dd/mm/yy" );
+        $('#startDate').datepicker("setDate", new Date(ItemData[0].StartDate));
+        $('#endDate').datepicker("setDate", new Date(ItemData[0].DueDate));
+        $('#ActionTitle').val(ItemData[0].Title == null ? "" : ItemData[0].Title);
+        $('#Actiondescrip').val(ItemData[0].Description);
+        $('#actionStatus').val(ItemData[0].Status);
+        $('#agenda2ID').val(ItemData[0].AgendaID);
+        $('#actionID').val(ItemData[0].ID);
+        // var isAdmin = $.grep(this.state.MEETINGADMINSDATA,function(value, index){ return value.AdminId ==  _spPageContextInfo.userId});
+        // if(this.state.CALENDARDATA.AuthorId == _spPageContextInfo.userId || isAdmin.length > 0 || ItemData[0].AuthorId == _spPageContextInfo.userId){
+        if(ISADMIN || ItemData[0].AuthorId == _spPageContextInfo.userId){
+            $('#ActionForm #Deletebtn').show();
+        }
+        else{
+            $('#ActionForm #Deletebtn').hide();
+        }
+        $('#ActionForm').css('display','block');
+    }
+    render(){
+        const actionContent = this.props.ACTIONDATA
+        .filter((item,key) => {
+            var eventDate = item.EventDate == null ? "" : "" + new Date(item.EventDate).getDate() + "/" + (new Date(item.EventDate).getMonth() + 1) + "/" + new Date(item.EventDate).getFullYear() +"";
+            return (item.AgendaID == this.props.AgendaID && this.props.eventdate == eventDate)
+        })
+        .map((item,key) => {
+            var createdDate = item.Created == null ? "" : "" + new Date(item.Created).getDate() + "/" + (new Date(item.Created).getMonth() + 1) + "/" + new Date(item.Created).getFullYear() +"";
+            var startDate = item.StartDate == null ? "" : "" + new Date(item.StartDate).getDate() + "/" + (new Date(item.StartDate).getMonth() + 1) + "/" + new Date(item.StartDate).getFullYear() +"";
+            var dueDate = item.DueDate == null ? "" : "" + new Date(item.DueDate).getDate() + "/" + (new Date(item.DueDate).getMonth() + 1) + "/" + new Date(item.DueDate).getFullYear() +"";
+            var eventDate = item.EventDate == null ? "" : "" + new Date(item.EventDate).getDate() + "/" + (new Date(item.EventDate).getMonth() + 1) + "/" + new Date(item.EventDate).getFullYear() +"";
+            var disabledClickevents;
+            if(!ISADMIN && item.AuthorId != _spPageContextInfo.userId){
+                disabledClickevents = () => {
+                    console.log('user not allowed to edit');
+                }
+            }
+            else{
+                disabledClickevents = () => {
+                    this.EditActionDetails(item.ID, this.props.Window);
+                }
+            }
+            return(
+                <li key={key} className="subcontent-wrap">
+                    <div className="action-wrap sub-wrap">
+                        <div className="left-icon">
+                            <div className="edit-icon" onClick={disabledClickevents}>
+                                <span className="sub-icon i-interface-essential-edit-pencil-write-alternate" title="Action"></span>
+                                <span className = "block-name font-v">Action</span>
+                            </div>
+                        </div>
+                        <div className="sub-block">
+                            <div className="sub-title">
+                                {item.Title}
+                            </div>
+                            <div className="sub-description">
+                                {item.Description}
+                            </div>
+                            <div className="sub-details">
+                                <table className="action-details-table">
+                                    <tbody>
+                                        <tr>
+                                            <td>Start Date:</td>
+                                            <td><span className="Datelbl">{startDate}</span></td>
+                                            <td>Due Date:</td>
+                                            <td><span className="Datelbl">{dueDate}</span></td>
+                                            <td>Status:</td>
+                                            <td>{item.Status}</td>
+                                        </tr>
+                                        {/* <tr>
+                                            <td>Status:</td>
+                                            <td>{item.Status}</td>
+                                            <td>Assigned To:</td>
+                                            <td>{item.AssignedTo.Title}</td>
+                                        </tr> */}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <ActionCommentsComponent ACTIONCOMMENTSDATA={this.props.ACTIONCOMMENTSDATA} ActionID={item.ID} DeleteItems={this.props.DeleteItems} Window={this.props.Window}/>
+                            <div className="comments-add">
+                                <div className="button-wrap" onClick={() => this.NewActionCommentForm(item.ID, item.AgendaID, this.props.Window)}>
+                                    <div className="comments-icon i-messages-chat-smileys-messages-speech-bubbles-messages-bubble-typing-alternate-1" title="Add a comment to the action."></div>
+                                    <div className="comments-addtitle">
+                                        <span title="Add a comment to the action.">Comment</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="sub-created font-v">
+                                <span>Created at </span>
+                                <span>{createdDate}</span>
+                                <span> By </span>
+                                <span>{item.Author.Title}</span>
+                            </div>
+                        </div>
+                    </div>
+                </li>
+            );
+        });
+        return(
+            <li className="subcontent-wrap">
+                {actionContent}
+            </li>
+        );
+    }
+}
+
+class ContainerComponents extends React.Component{
+    setattribute(data){
+        return "accordion"+ data +"";
+    }
+    NewActionForm(_agendaID, _index){
+        panelActive = _index;
+        $('#agenda2ID').val(_agendaID);
+        $('#startDate').datepicker();
+        $('#endDate').datepicker();
+        $('#startDate').datepicker( "option", "dateFormat", "dd/mm/yy" );
+        $('#endDate').datepicker( "option", "dateFormat", "dd/mm/yy" );
+        $('#startDate').datepicker("setDate", $('.timeline').find('a.selected').data().date);
+        $('#endDate').datepicker("setDate", $('.timeline').find('a.selected').data().date);
+        $('#ActionForm #Deletebtn').hide();
+        $('#ActionForm').css('display','block');
+    }
+    NewAttachmentForm(_agendaID, _index, _listGUID){
+        panelActive = _index;
+        $('#agenda4ID').val(_agendaID);
+        $('#AttachmentForm').css('display','block');
+    }
+    NewLinkForm(_agendaID, _index){
+        panelActive = _index;
+        // ItemData = $.grep(this.props.LINKDATA,function(value, index){ return value.ID == _linkItemID });
+        // $('#linkurl').val(ItemData[0].LinkURL.Url);
+        // $('#linktitle').val(ItemData[0].Title);
+        $('#agenda4ID').val(_agendaID);
+        $('#LinkForm').css('display','block');
+    }
+    EditAgendaDetails = (_agendaID, _index) => {
+        panelActive = _index;
+        $('#agendaID').val(_agendaID);
+        ItemData = $.grep(this.props.AGENDADATA,function(value, index){ return value.ID == _agendaID });
+        $('#AgendaTitle').val(ItemData[0].Title == null ? "" : ItemData[0].Title);
+        $('#NewAgendaEstimatedTime').val(ItemData[0].AgendaTimer == null ? "" : ItemData[0].AgendaTimer);
+        $('#agendaStatus').val(ItemData[0].Status == null ? "" : ItemData[0].Status);
+        // var isAdmin = $.grep(this.state.MEETINGADMINSDATA,function(value, index){ return value.AdminId ==  _spPageContextInfo.userId});
+        // if(this.state.CALENDARDATA.AuthorId == _spPageContextInfo.userId || isAdmin.length > 0){
+        if(ISADMIN){
+            $('#AgendaForm #Deletebtn').show();
+        }
+        else{
+            $('#AgendaForm #Deletebtn').hide();
+        }
+        if(ItemData[0].CommonTitle){
+            $('#AgendaForm #Deletebtn').hide();
+            $('#agendaStatus').parent().parent().hide();
+        }
+        $('#AgendaForm').css('display','block');
+    }
+    render(){
+        const agendacontent = this.props.AGENDADATA
+        .filter((item, key) => {
+            var eventdate = item.EventDate == null ? "" : "" + new Date(item.EventDate).getDate() + "/" + (new Date(item.EventDate).getMonth() + 1) + "/" + new Date(item.EventDate).getFullYear() +"";
+            return (item.CommonTitle || this.props.eventdate == eventdate);
+        })
+        .map((item,key) => {
+            var TimerStyle;
+            var deleteStyle;
+            var completedStyle;
+            var disabledClickevents;
+            // var temp = new Date();
+            // var todaysDate = temp == null ? "" : "" + new Date(temp).getDate() + "/" + (new Date(temp).getMonth() + 1) + "/" + new Date(temp).getFullYear() +"";
+            // if(todaysDate != this.props.eventdate){
+            //     // disabledClickevents = {
+            //     //     pointerEvents: 'none'
+            //     // }
+            //     // deleteStyle = {
+            //     //     display: 'none'
+            //     // }
+            // }
+            if(!ISADMIN && item.AuthorId != _spPageContextInfo.userId){
+                deleteStyle = {
+                    visibility: 'hidden'
+                }
+            }
+            if(item.AgendaTimer <= 0)
+            {
+                TimerStyle = {
+                    display: 'none'
+                }
+            }
+            if(item.Status != "Completed")
+            {
+                completedStyle = {
+                    display: 'none'
+                }
+            }
+            return([
+                <h3>
+                    <span className="agenda-title">{item.Title}</span>
+                    <div style={completedStyle} className="agenda-status-icon">
+                        <div className="item">
+                            <span className="i-interface-essential-form-validation-check-circle-1-alternate"></span>
+                        </div>
+                    </div>
+                </h3>,
+                <div>
+                    <div className="agenda-content">
+                        <div className="sub-control control">
+                            <div style={disabledClickevents} className="item" title="Add Action" onClick={() => this.NewActionForm(item.ID, key)} >
+                                <span className="icon i-interface-essential-edit-pencil-write-alternate"></span>
+                                <span className="text">
+                                    Add Action
+                                </span>
+                            </div>
+                            <div style={disabledClickevents} className="item" title="Add Note">
+                                <span className="icon i-design-design-process-design-draw"></span>
+                                <span className="text">
+                                    Add Note
+                                </span>
+                            </div>
+                            <div style={disabledClickevents} className="item attachment-control" onClick={() => this.NewAttachmentForm(item.ID, key)}>
+                                <span className="icon i-interface-essential-link-unlink-hyperlink-3"></span>
+                                <span className="text">
+                                    Add Attachment
+                                </span>
+                                <div className="realbutton">
+                                    {/* <form style="margin: 0;padding: 0;" enctype="multipart/form-data" method="post"
+                                        action="/Meeting/Attachment/Upload" target="hiddenFrm">
+                                        <input type="hidden" name="attachments.siteGuid" value="8c3d8736-5345-437a-90b9-1dc8f96950d6">
+                                        <input type="hidden" name="attachments.agendaGuid" value="1431369e-8ead-b6b9-728a-8496bfe19bda">
+                                        <input type="hidden" name="attachments.meetingGuid" value="5d7276ca-9084-44e9-b3e2-db0bb33d6fc3">
+                                        <input type="hidden" name="attachments.parentmeetingGuid" value="">
+                                        <input type="hidden" name="attachments.agendaTitle">
+                                        <input type="hidden" name="attachments.meetingTitle">
+                                        <input type="hidden" name="attachments.meetingStartDate" value="1532539800000">
+                                        <input name="files" type="file" multiple="multiple" title="Add Attachment">
+                                    </form> */}
+                                </div>
+                            </div>
+                            <div style={disabledClickevents} className="item" title="Add Decision">
+                                <span className=" icon i-messages-chat-smileys-messages-speech-bubbles-messages-bubble-double-alternate">
+                                </span>
+                                <span className="text">
+                                    Add Decision
+                                </span>
+                            </div>
+                            <div style={disabledClickevents} className="item" title="Add Link" onClick={() => {this.NewLinkForm(item.ID, key)}}>
+                                <span className="icon i-internet-networks-servers-worldwide-web-network-arrow"
+                                ></span>
+                                <span className="text">
+                                    Add Link
+                                </span>
+                            </div>
+                            <div style={deleteStyle} className="item agenda-edit-icon" title="Edit Agenda" onClick={() => {this.EditAgendaDetails(item.ID, key)}}>
+                                    <span className="icon i-interface-essential-setting-cog">
+                                    </span>
+                            </div>
+                            <div className="agendatimer-desc" style={TimerStyle}>
+                                <span>Expected Duration: </span>
+                                <span>{item.AgendaTimer}</span>
+                                <span> mins</span>
+                            </div>
+                        </div>
+                        <ul className="sub-content">
+                            <ActionComponent ACTIONDATA={this.props.ACTIONDATA} ACTIONCOMMENTSDATA={this.props.ACTIONCOMMENTSDATA} eventdate={this.props.eventdate} AgendaID={item.ID} DeleteItems={this.props.DeleteItems} Window={key}/>
+                            <AgendaAttachmentComponents MEETINGDOCUMENTSDATA={this.props.MEETINGDOCUMENTSDATA} eventdate={this.props.eventdate} AgendaID={item.ID} DeleteItems={this.props.DeleteItems} Window={key}/>
+                            <AgendaLinkComponents LINKDATA={this.props.LINKDATA} eventdate={this.props.eventdate} AgendaID={item.ID} DeleteItems={this.props.DeleteItems} Window={key}/>
+                        </ul>
+                    </div>
+                </div>
+            ]);
+            
+        });
+        return (
+            <div id="container-core">
+                <div id="agendas-wrap">
+                    <ul className="agenda-ul">
+                        <li className="agenda-item" draggable="false">
+                            <div id={this.setattribute(this.props.count)}>
+                                {agendacontent}
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        );
+    }
+}
+
+ReactDOM.render(<MeetingTracker />, $('.MeetingTracker')[0]);
