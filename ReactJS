@@ -22,7 +22,7 @@ const { render } = ReactDOM;
 // import RichTextEditor from 'react-rte';
 
 var classnames = "cd-horizontal-timeline";
-var ItemID,ISADMIN,meetingdateStyle;
+var ItemID,ISADMIN,meetingdateStyle,STARTDATE,ENDDATE,selectedYear,selectedMonth;
 var ItemData = [];
 var MeetingDates = [];
 
@@ -43,6 +43,7 @@ function ResetValues(){
     $('#agenda2ID').val('');
     $('#agenda3ID').val('');
     $('#agenda4ID').val('');
+    $('#agenda5ID').val('');
     $('#ActionTitle').val('');
     $('#Actiondescrip').val('');
     $('#AddAttachment').val('');
@@ -52,8 +53,8 @@ function ResetValues(){
     $('#ActionComment').val('');
     $('#actionID').val('');
     $('#action2ID').val('');
-    $('#AgendaForm #Deletebtn').show();
-    $('#ActionForm #Deletebtn').show();
+    $('#AgendaForm #Deletebtn1').show();
+    $('#ActionForm #Deletebtn2').show();
     $('#progressbar')[0].value = 0;
     $('#progressbar').parent().parent().hide();
     $('#AttachmentForm .close').css('pointer-events','auto');
@@ -97,7 +98,11 @@ class MeetingTracker extends React.Component{
                 ACTIONDATA: [],
                 LINKDATA: [],
                 ACTIONCOMMENTSDATA: [],
-                MEETINGDOCUMENTSDATA: []
+                MEETINGDOCUMENTSDATA: [],
+                YEAROPTIONS: [],
+                MONTHOPTIONS: [],
+                SELECTEDYEAR: new Date().getFullYear(),
+                SELECTEDMONTH: new Date().getMonth()
                 
             };  
         // this.CreateNewAgenda = this.CreateNewAgenda.bind(this);
@@ -115,6 +120,11 @@ class MeetingTracker extends React.Component{
         this.DeleteItems = this.DeleteItems.bind(this);
         this.EditCalendarDetails = this.EditCalendarDetails.bind(this);
         this.AddAttachment = this.AddAttachment.bind(this);
+        this.loadMonths = this.loadMonths.bind(this);
+        this.reloadData = this.reloadData.bind(this);
+        this.switchSort = this.switchSort.bind(this);
+        this.agendaMoveUp = this.agendaMoveUp.bind(this);
+        this.agendaMoveDown = this.agendaMoveDown.bind(this);
     }
 
     componentDidMount(){
@@ -131,7 +141,9 @@ class MeetingTracker extends React.Component{
         $('#progressbar').parent().parent().hide();
         var timelines = $('.cd-horizontal-timeline');
         initTimeline(timelines);
-        initialization(this.state.CALENDARITEMS);
+        initialization(this.state.CALENDARITEMS.filter((item, key)=>{
+            return this.state.SELECTEDMONTH == new Date(item.EventDate).getMonth() && this.state.SELECTEDYEAR == new Date(item.EventDate).getFullYear();
+        }));
         // initializePeoplePicker('peoplePickerDiv');
     }
 
@@ -206,9 +218,10 @@ class MeetingTracker extends React.Component{
                         url =  _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/getbytitle('"+ ListName +"')/items?$select=*,Admin/Title,Admin/UserName&$expand=Admin&$orderby=ID asc";
                         break;
 
-                // case LISTNAMES.AGENDALIST:
-                //         url =  _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/getbytitle('"+ ListName +"')/items?$select=*,AttachmentFiles,Author/Title,Author/UserName,AttachmentUser/Title,AttachmentUser/UserName,Editor/Title,Editor/UserName&$expand=Author,Editor,AttachmentUser,AttachmentFiles&$filter=MeetingID eq "+ ItemID +"&$orderby=ID asc";
-                //         break;
+                case LISTNAMES.AGENDALIST:
+                        // url =  _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/getbytitle('"+ ListName +"')/items?$select=*,AttachmentFiles,Author/Title,Author/UserName,AttachmentUser/Title,AttachmentUser/UserName,Editor/Title,Editor/UserName&$expand=Author,Editor,AttachmentUser,AttachmentFiles&$filter=MeetingID eq "+ ItemID +"&$orderby=ID asc";
+                        url =  _spPageContextInfo.webAbsoluteUrl + "/_api/web/lists/getbytitle('"+ ListName +"')/items?$select=*,Author/Title,Author/UserName,Editor/Title,Editor/UserName,AgendaSortOrder&$expand=Author,Editor&$filter=MeetingID eq "+ ItemID +"&$orderby=AgendaSortOrder asc";
+                        break;
 
                 case LISTNAMES.MEETINGDOCUMENTS:
                         url =  _spPageContextInfo.webAbsoluteUrl + "/_api/web/GetFolderByServerRelativeUrl('"+ ListName +"/"+ ItemID +"')/Files?$select=*,Author/Title,Author/UserName,Editor/Title,Editor/UserName&$expand=ListItemAllFields,Author,Editor";
@@ -245,6 +258,9 @@ class MeetingTracker extends React.Component{
                         case LISTNAMES.CALENDARLIST:
                                 LISTDATA.CALENDARDATA = value;
                                 LISTDATA.CALENDARITEMS = spEventsParser.parseEvent(value);
+                                MeetingDates = spEventsParser.parseEvent(value);
+                                STARTDATE = new Date(value.EventDate);
+                                ENDDATE = new Date(value.EndDate);
                                 if(_listName != undefined && _listName != null){
                                     reactHandler.setState({
                                         CALENDARDATA: value,
@@ -351,7 +367,37 @@ class MeetingTracker extends React.Component{
                         alert("You do not have permission to view this meeting details, kindly contact the organizer to add you in the meeting.");
                         window.location.href = _spPageContextInfo.webServerRelativeUrl;
                     }
-                
+
+                    var yearOptions = [];
+                    for(var i=STARTDATE.getFullYear();i<=ENDDATE.getFullYear();i++){
+                        yearOptions.push(i);
+                    }
+
+                    var meetingtobeloaded = "";
+                    if(!LISTDATA.CALENDARDATA.fRecurrence){
+                        meetingtobeloaded = new Date(LISTDATA.CALENDARITEMS[0].EventDate);
+                        currentMeetingEvent = new Date(LISTDATA.CALENDARITEMS[0].EventDate);
+                    }
+                    else{
+                        if(currentMeetingEvent == "")
+                        {
+                            var temp = $.grep(LISTDATA.CALENDARITEMS,function(value, index){ return (new Date(value.EventDate).getMonth() >= new Date().getMonth() && (new Date(value.EventDate).getFullYear() >= new Date().getFullYear()) && (new Date(value.EventDate).getDate() >= new Date().getDate()))});
+                            if(temp.length != 0){
+                                var EventDate = temp[0].EventDate == null ? "" : "" + (new Date(temp[0].EventDate).getMonth() + 1) + "/" + new Date(temp[0].EventDate).getDate() + "/" + new Date(temp[0].EventDate).getFullYear() +"";
+                                currentMeetingEvent = new Date(EventDate);
+                                meetingtobeloaded =  new Date(EventDate);
+                            }
+                            else{
+                                meetingtobeloaded = new Date(LISTDATA.CALENDARITEMS[LISTDATA.CALENDARITEMS.length - 1].EventDate);
+                            }
+                        }
+                        else if(selectedDate != ""){
+                            meetingtobeloaded = new Date(selectedDate);
+                        }
+                        else if(meetingtobeloaded == ""){
+                            meetingtobeloaded = new Date(LISTDATA.CALENDARITEMS[LISTDATA.CALENDARITEMS.length - 1].EventDate);
+                        }
+                    }
 
                     reactHandler.setState({
                         // data: LISTDATA,
@@ -363,7 +409,11 @@ class MeetingTracker extends React.Component{
                         LINKDATA: LISTDATA.LINKDATA,
                         ACTIONCOMMENTSDATA: LISTDATA.ACTIONCOMMENTSDATA,
                         // MEETINGADMINSDATA: LISTDATA.MEETINGADMINSDATA,
-                        MEETINGDOCUMENTSDATA: LISTDATA.MEETINGDOCUMENTSDATA
+                        MEETINGDOCUMENTSDATA: LISTDATA.MEETINGDOCUMENTSDATA,
+                        YEAROPTIONS: yearOptions,
+                        MONTHOPTIONS: reactHandler.loadMonths(new Date().getFullYear().toString()),
+                        SELECTEDYEAR: Number(meetingtobeloaded.getFullYear()),
+                        SELECTEDMONTH: Number(meetingtobeloaded.getMonth())
                     });
                 }
         
@@ -371,7 +421,7 @@ class MeetingTracker extends React.Component{
     }
 
     NewAgendaForm(){
-        $('#AgendaForm #Deletebtn').hide();
+        $('#AgendaForm #Deletebtn1').hide();
         $('#agendaStatus').parent().parent().hide();
         $('#NewAgendaEstimatedTime').val(0);
         $('#AgendaForm').css('display','block');
@@ -407,9 +457,9 @@ class MeetingTracker extends React.Component{
             case LISTNAMES.AGENDALIST:
                     var TitleValue = $('#AgendaTitle').val() == "" ? "" : $('#AgendaTitle').val();
                     var Status = $('#agendaStatus').val();
-                    // var month = $('.timeline').find('a.selected').data().date.slice($('.timeline').find('a.selected').data().date.indexOf('/') + 1,$('.timeline').find('a.selected').data().date.length - 5);
-                    // var year = $('.timeline').find('a.selected').data().date.slice($('.timeline').find('a.selected').data().date.length-4,$('.timeline').find('a.selected').data().date.length);
-                    // var date = $('.timeline').find('a.selected').data().date.slice(0,$('.timeline').find('a.selected').data().date.indexOf('/'));
+                    // var month = $('.timeline').find('a.selected').attr('data-date').slice($('.timeline').find('a.selected').attr('data-date').indexOf('/') + 1,$('.timeline').find('a.selected').attr('data-date').length - 5);
+                    // var year = $('.timeline').find('a.selected').attr('data-date').slice($('.timeline').find('a.selected').attr('data-date').length-4,$('.timeline').find('a.selected').attr('data-date').length);
+                    // var date = $('.timeline').find('a.selected').attr('data-date').slice(0,$('.timeline').find('a.selected').attr('data-date').indexOf('/'));
                     // var temp = new Date();
                     // var todaysDate = temp == null ? "" : "" + new Date(temp).getDate() + "/" + (new Date(temp).getMonth() + 1) + "/" + new Date(temp).getFullYear() +"";
                     // if($('#agendaStatus').val() == "Move to Future Meeting"){
@@ -582,9 +632,11 @@ class MeetingTracker extends React.Component{
             case LISTNAMES.AGENDALIST:
                     panelActive = $('.events-content').find('.selected').find('div[id*="accordion"]').find('h3').length;
                     var TitleValue = $('#AgendaTitle').val() == "" ? "" : $('#AgendaTitle').val();
-                    var month = $('.timeline').find('a.selected').data().date.slice($('.timeline').find('a.selected').data().date.indexOf('/') + 1,$('.timeline').find('a.selected').data().date.length - 5);
-                    var year = $('.timeline').find('a.selected').data().date.slice($('.timeline').find('a.selected').data().date.length-4,$('.timeline').find('a.selected').data().date.length);
-                    var date = $('.timeline').find('a.selected').data().date.slice(0,$('.timeline').find('a.selected').data().date.indexOf('/'));
+                    var month = $('.timeline').find('a.selected').attr('data-date').slice($('.timeline').find('a.selected').attr('data-date').indexOf('/') + 1,$('.timeline').find('a.selected').attr('data-date').length - 5);
+                    var year = $('.timeline').find('a.selected').attr('data-date').slice($('.timeline').find('a.selected').attr('data-date').length-4,$('.timeline').find('a.selected').attr('data-date').length);
+                    var date = $('.timeline').find('a.selected').attr('data-date').slice(0,$('.timeline').find('a.selected').attr('data-date').indexOf('/'));
+                    // var AgendaSortOrder = $.grep(reactHandler.state.AGENDADATA,function(value, index){ return value.AgendaSortOrder > 4 });
+                    // AgendaSortOrder = 999 - AgendaSortOrder.length;
                     if($('#AgendaTitle').val() == ""){
                         flag = false;
                         ErrorMessage = "please enter a agenda title";
@@ -605,7 +657,9 @@ class MeetingTracker extends React.Component{
                         'MeetingID' : ItemID,
                         'EventDate' : ""+ month +"/"+ date +"/"+ year +"",
                         'AgendaTimer' : $('#NewAgendaEstimatedTime').val(),
-                        'Created' : ""+ month +"/"+ date +"/"+ year +""
+                        'Created' : ""+ month +"/"+ date +"/"+ year +"",
+                        'AgendaSortOrder' : Number(reactHandler.state.AGENDADATA.length + 1),
+                        // 'AgendaSortOrder' : Number(AgendaSortOrder)
                     });
                     break;
 
@@ -619,9 +673,9 @@ class MeetingTracker extends React.Component{
                     year = $('#endDate').val().slice($('#endDate').val().length-4,$('#endDate').val().length);
                     date = $('#endDate').val().slice(0,$('#endDate').val().indexOf('/'));
                     var endDate = ""+ month +"/"+ date +"/"+ year +"";
-                    month = $('.timeline').find('a.selected').data().date.slice($('.timeline').find('a.selected').data().date.indexOf('/') + 1,$('.timeline').find('a.selected').data().date.length - 5);
-                    year = $('.timeline').find('a.selected').data().date.slice($('.timeline').find('a.selected').data().date.length-4,$('.timeline').find('a.selected').data().date.length);
-                    date = $('.timeline').find('a.selected').data().date.slice(0,$('.timeline').find('a.selected').data().date.indexOf('/'));
+                    month = $('.timeline').find('a.selected').attr('data-date').slice($('.timeline').find('a.selected').attr('data-date').indexOf('/') + 1,$('.timeline').find('a.selected').attr('data-date').length - 5);
+                    year = $('.timeline').find('a.selected').attr('data-date').slice($('.timeline').find('a.selected').attr('data-date').length-4,$('.timeline').find('a.selected').attr('data-date').length);
+                    date = $('.timeline').find('a.selected').attr('data-date').slice(0,$('.timeline').find('a.selected').attr('data-date').indexOf('/'));
                     if($('#ActionTitle').val() == ""){
                         flag = false;
                         ErrorMessage = "please enter a action title";
@@ -688,9 +742,9 @@ class MeetingTracker extends React.Component{
             case LISTNAMES.LINKLIST:
                 var TitleValue = $('#linktitle').val() == "" ? "" : $('#linktitle').val();
                 var URLValue = $('#linkurl').val() == "" ? "" : $('#linkurl').val();
-                var month = $('.timeline').find('a.selected').data().date.slice($('.timeline').find('a.selected').data().date.indexOf('/') + 1,$('.timeline').find('a.selected').data().date.length - 5);
-                var year = $('.timeline').find('a.selected').data().date.slice($('.timeline').find('a.selected').data().date.length-4,$('.timeline').find('a.selected').data().date.length);
-                var date = $('.timeline').find('a.selected').data().date.slice(0,$('.timeline').find('a.selected').data().date.indexOf('/'));
+                var month = $('.timeline').find('a.selected').attr('data-date').slice($('.timeline').find('a.selected').attr('data-date').indexOf('/') + 1,$('.timeline').find('a.selected').attr('data-date').length - 5);
+                var year = $('.timeline').find('a.selected').attr('data-date').slice($('.timeline').find('a.selected').attr('data-date').length-4,$('.timeline').find('a.selected').attr('data-date').length);
+                var date = $('.timeline').find('a.selected').attr('data-date').slice(0,$('.timeline').find('a.selected').attr('data-date').indexOf('/'));
                 if(TitleValue == ""){
                     flag = false;
                     ErrorMessage = "please enter a link title";
@@ -712,7 +766,7 @@ class MeetingTracker extends React.Component{
                     },
                     'MeetingID' : ItemID,
                     'EventDate' : ""+ month +"/"+ date +"/"+ year +"",
-                    'AgendaID': $('#agenda4ID').val()
+                    'AgendaID': $('#agenda5ID').val()
                 });
                 break;
         }
@@ -827,6 +881,286 @@ class MeetingTracker extends React.Component{
                 reactHandler.RetrieveSPData();
                 reactHandler.CloseModalWindow();
             });
+    }
+
+    switchSort(_itemID, _sortNumber){
+        var URL = _spPageContextInfo.webAbsoluteUrl+"/_api/web/lists/GetByTitle('"+ LISTNAMES.AGENDALIST +"')/Items("+ _itemID +")";
+        var datastored = JSON.stringify({
+            '__metadata': {
+                'type': 'SP.Data.AgendaListItem'
+            },
+            'AgendaSortOrder' : _sortNumber,
+        });
+        var call =  $.ajax({
+            url: URL,
+            type: "POST",
+            async: false,
+            data: datastored,
+            headers:{
+                "X-RequestDigest" : $("#__REQUESTDIGEST").val(),
+                "IF-MATCH": "*",
+                "X-HTTP-Method":"MERGE",
+                "accept": "application/json;odata=verbose",
+                "content-type": "application/json;odata=verbose",
+                // "content-length":"length of post body"
+            }
+        });
+        call.done(function (result) {
+            // console.log(error.statusText);
+        })
+        call.fail(function (error) {
+            console.log(error.statusText);
+        });
+    }
+    agendaMoveUp = (_itemID, _index) => {
+        var reactHandler = this;
+        var currentagendaData = $.grep(reactHandler.state.AGENDADATA,function(value, index){ return value.ID == _itemID });
+        var month = $('.timeline').find('a.selected').attr('data-date').slice($('.timeline').find('a.selected').attr('data-date').indexOf('/') + 1,$('.timeline').find('a.selected').attr('data-date').length - 5);
+        var year = $('.timeline').find('a.selected').attr('data-date').slice($('.timeline').find('a.selected').attr('data-date').length-4,$('.timeline').find('a.selected').attr('data-date').length);
+        var date = $('.timeline').find('a.selected').attr('data-date').slice(0,$('.timeline').find('a.selected').attr('data-date').indexOf('/'));
+        var currentEventDate = ""+ date +"/"+ month +"/"+ year +"";
+        // var currentEventDate = currentagendaData[0].EventDate == null ? "" : "" + new Date(currentagendaData[0].EventDate).getDate() + "/" + (new Date(currentagendaData[0].EventDate).getMonth() + 1) + "/" + new Date(currentagendaData[0].EventDate).getFullYear() +"";
+        var previousAgenda = $.grep(reactHandler.state.AGENDADATA, function(value, index){
+            var eventdate = value.EventDate == null ? "" : "" + new Date(value.EventDate).getDate() + "/" + (new Date(value.EventDate).getMonth() + 1) + "/" + new Date(value.EventDate).getFullYear() +"";
+            var flag = false;
+            if((eventdate == currentEventDate) || eventdate == ""){
+                flag = true;
+            }
+            return flag && value.AgendaSortOrder < currentagendaData[0].AgendaSortOrder
+        });
+        if(previousAgenda.length != 0){
+            var flag = false;
+            var shiftSort = [];
+            var previousAgendaData = previousAgenda[previousAgenda.length -1];
+            var previousOrderNum, currentOrderNum = -1;
+            var currentItemId = currentagendaData[0].ID;
+            // if((previousAgendaData.AgendaSortOrder > 0 && previousAgendaData.AgendaSortOrder < 5)
+            // && (currentagendaData[0].AgendaSortOrder > 0 && currentagendaData[0].AgendaSortOrder < 5))
+            // {
+            //     previousOrderNum = previousAgendaData.AgendaSortOrder;
+            //     currentOrderNum = currentagendaData[0].AgendaSortOrder;
+            //     panelActive = _index - 1;
+            // }
+            // else 
+            if((previousAgendaData.AgendaSortOrder > 0 && previousAgendaData.AgendaSortOrder < 5)
+            && (currentagendaData[0].AgendaSortOrder > 4)){
+                if(previousAgenda[0].AgendaSortOrder == 1){
+                    previousOrderNum = -999;
+                    currentOrderNum = previousAgendaData.AgendaSortOrder;
+                    panelActive = 0;
+                }
+                else if(Math.sign(previousAgenda[0].AgendaSortOrder) == -1){
+                    var negValues = $.grep(previousAgenda, function(value, index){ return value.AgendaSortOrder < 1 });
+                    panelActive = negValues.length;
+                    negValues = negValues[negValues.length - 1];
+                    previousOrderNum = negValues.AgendaSortOrder + 1;
+                    currentOrderNum = previousAgendaData.AgendaSortOrder;
+                }
+            }
+            else if((previousAgendaData.AgendaSortOrder < 1)
+            && (currentagendaData[0].AgendaSortOrder > 0 && currentagendaData[0].AgendaSortOrder < 5)){
+                previousOrderNum = currentagendaData[0].AgendaSortOrder;
+                if(Math.sign(previousAgenda[previousAgenda.length -1].AgendaSortOrder) == -1 || previousAgenda[previousAgenda.length -1].AgendaSortOrder < 1){
+                    var temp = $.grep(reactHandler.state.AGENDADATA, function(value, index){
+                        var eventdate = value.EventDate == null ? "" : "" + new Date(value.EventDate).getDate() + "/" + (new Date(value.EventDate).getMonth() + 1) + "/" + new Date(value.EventDate).getFullYear() +"";
+                        var flag = false;
+                        if((eventdate == currentEventDate) || eventdate == ""){
+                            flag = true;
+                        }
+                        return flag && value.AgendaSortOrder > 4
+                    });
+                    
+                    // $.grep(reactHandler.state.AGENDADATA,function(value, index){ 
+                    //     return value.AgendaSortOrder > 4 
+                    // });
+                    panelActive = previousAgenda.length - 1;
+                    if(temp.length == 0){
+                        currentOrderNum = 5;
+                    }
+                    else{
+                        flag = true;
+                        shiftSort.push({
+                            itemID: previousAgendaData.ID,
+                            sort: 5
+                        });
+                        var count = 6;
+                        $.each(temp, function (index, value) {
+                            // if(count == (value.AgendaSortOrder + 1)){
+                            //     shiftSort.push({
+                            //         itemID: value.ID,
+                            //         sort: Number(value.AgendaSortOrder + 1)
+                            //     });
+                            // }
+                            // else{
+                            //     shiftSort.push({
+                            //         itemID: value.ID,
+                            //         sort: Number(count)
+                            //     });
+                            // }
+                            shiftSort.push({
+                                itemID: value.ID,
+                                sort: Number(count)
+                            });
+                            count++;
+                        });
+                    }
+                }
+            }
+            else{
+                previousOrderNum = previousAgendaData.AgendaSortOrder;
+                currentOrderNum = currentagendaData[0].AgendaSortOrder;
+                panelActive = _index - 1;
+            }
+            if(flag){
+                var feedPromises = [];
+                $.each(shiftSort,function(index, value){
+                    feedPromises.push(reactHandler.switchSort(value.itemID, value.sort));
+                });
+                $.when.apply(this, feedPromises)
+                .done(function () {
+                    reactHandler.RetrieveSPData(LISTNAMES.AGENDALIST);
+                });
+            }
+            else{
+                $.when(reactHandler.switchSort(currentItemId, previousOrderNum), reactHandler.switchSort(previousAgendaData.ID, currentOrderNum))
+                // $.when(this.switchSort(currentItemId, previousAgendaData.AgendaSortOrder), this.switchSort(previousAgendaData.ID, currentagendaData[0].AgendaSortOrder))
+                .then(function () {
+                    reactHandler.RetrieveSPData(LISTNAMES.AGENDALIST);
+                });
+            }
+        }
+    }
+    agendaMoveDown = (_itemID, _index) => {
+        var reactHandler = this;
+        var currentagendaData = $.grep(this.state.AGENDADATA,function(value, index){ return value.ID == _itemID });
+        var month = $('.timeline').find('a.selected').attr('data-date').slice($('.timeline').find('a.selected').attr('data-date').indexOf('/') + 1,$('.timeline').find('a.selected').attr('data-date').length - 5);
+        var year = $('.timeline').find('a.selected').attr('data-date').slice($('.timeline').find('a.selected').attr('data-date').length-4,$('.timeline').find('a.selected').attr('data-date').length);
+        var date = $('.timeline').find('a.selected').attr('data-date').slice(0,$('.timeline').find('a.selected').attr('data-date').indexOf('/'));
+        var currentEventDate = ""+ date +"/"+ month +"/"+ year +"";
+        // var currentEventDate = currentagendaData[0].EventDate == null ? "" : "" + new Date(currentagendaData[0].EventDate).getDate() + "/" + (new Date(currentagendaData[0].EventDate).getMonth() + 1) + "/" + new Date(currentagendaData[0].EventDate).getFullYear() +"";
+        // var currentEventDate = new Date(currentagendaData.EventDate);
+        var nextAgenda = $.grep(this.state.AGENDADATA, function(value, index){
+            var eventdate = value.EventDate == null ? "" : "" + new Date(value.EventDate).getDate() + "/" + (new Date(value.EventDate).getMonth() + 1) + "/" + new Date(value.EventDate).getFullYear() +"";
+            var flag = false;
+            // // if(eventdate == ""){
+            // //     flag = true;
+            // // }
+            // // // else if(currentEventDate == ""){
+            // // //     flag = true;
+            // // // }
+            // // else if(eventdate == currentEventDate && eventdate != "" && currentEventDate != ""){
+            // //     flag = true;
+            // // }
+            if((eventdate == currentEventDate) || eventdate == ""){
+                flag = true;
+            }
+            return flag && value.AgendaSortOrder > currentagendaData[0].AgendaSortOrder
+        });
+        if(nextAgenda.length != 0){
+            var flag = false;
+            var shiftSort = [];
+            var nextAgendaData = nextAgenda[0];
+            var nextOrderNum, currentOrderNum = -1;
+            if((nextAgendaData.AgendaSortOrder > 0 && nextAgendaData.AgendaSortOrder < 5)
+            && (currentagendaData[0].AgendaSortOrder < 1)){
+                currentOrderNum = nextAgendaData.AgendaSortOrder;
+                var temp = $.grep(reactHandler.state.AGENDADATA, function(value, index){
+                    var eventdate = value.EventDate == null ? "" : "" + new Date(value.EventDate).getDate() + "/" + (new Date(value.EventDate).getMonth() + 1) + "/" + new Date(value.EventDate).getFullYear() +"";
+                    var flag = false;
+                    if((eventdate == currentEventDate) || eventdate == ""){
+                        flag = true;
+                    }
+                    return flag && value.AgendaSortOrder > 4
+                });
+
+                var temp2 = $.grep(reactHandler.state.AGENDADATA, function(value, index){
+                    var eventdate = value.EventDate == null ? "" : "" + new Date(value.EventDate).getDate() + "/" + (new Date(value.EventDate).getMonth() + 1) + "/" + new Date(value.EventDate).getFullYear() +"";
+                    var flag = false;
+                    if((eventdate == currentEventDate) || eventdate == ""){
+                        flag = true;
+                    }
+                    return flag && value.AgendaSortOrder < 1
+                });
+                panelActive = temp2.length + 3;
+                if(temp.length == 0){
+                    nextOrderNum = 5;
+                }
+                else{
+                    flag = true;
+                    shiftSort.push({
+                        itemID: currentagendaData[0].ID,
+                        sort: 5
+                    });
+                    var count = 6;
+                    $.each(temp, function (index, value) {
+                        shiftSort.push({
+                            itemID: value.ID,
+                            sort: Number(count)
+                        });
+                        count++;
+                    });
+                }
+            }
+            else if((nextAgendaData.AgendaSortOrder > 4)
+            && (currentagendaData[0].AgendaSortOrder > 0 && currentagendaData[0].AgendaSortOrder < 5)){
+
+                var temp = $.grep(reactHandler.state.AGENDADATA, function(value, index){
+                    var eventdate = value.EventDate == null ? "" : "" + new Date(value.EventDate).getDate() + "/" + (new Date(value.EventDate).getMonth() + 1) + "/" + new Date(value.EventDate).getFullYear() +"";
+                    var flag = false;
+                    if((eventdate == currentEventDate) || eventdate == ""){
+                        flag = true;
+                    }
+                    return flag && value.AgendaSortOrder < 1
+                });
+
+                if(nextAgendaData.AgendaSortOrder == 5){
+                    nextOrderNum = currentagendaData[0].AgendaSortOrder;
+                    if(temp.length == 0){
+                        currentOrderNum = -999;
+                        panelActive = 4;
+                    }
+                    else{
+                        currentOrderNum = Number(temp[temp.length - 1].AgendaSortOrder + 1);
+                        panelActive = currentagendaData[0].AgendaSortOrder + temp.length + 1;
+                    }
+                    
+                    // nextOrderNum = -999;
+                    // currentOrderNum = nextAgendaData.AgendaSortOrder;
+                    // panelActive = 0;
+                }
+                // else if(Math.sign(nextAgenda[0].AgendaSortOrder) == -1){
+                //     var negValues = $.grep(nextAgenda, function(value, index){ return value.AgendaSortOrder < 1 });
+                //     panelActive = negValues.length;
+                //     negValues = negValues[negValues.length - 1];
+                //     nextOrderNum = negValues.AgendaSortOrder + 1;
+                //     currentOrderNum = nextAgendaData.AgendaSortOrder;
+                // }
+            }
+            else{
+                nextOrderNum = nextAgendaData.AgendaSortOrder;
+                currentOrderNum = currentagendaData[0].AgendaSortOrder;
+                panelActive = _index + 1;
+            }
+
+            if(flag){
+                var feedPromises = [];
+                $.each(shiftSort,function(index, value){
+                    feedPromises.push(reactHandler.switchSort(value.itemID, value.sort));
+                });
+                $.when.apply(this, feedPromises)
+                .done(function () {
+                    reactHandler.RetrieveSPData(LISTNAMES.AGENDALIST);
+                });
+            }
+            else{
+                $.when(this.switchSort(currentagendaData[0].ID, nextOrderNum), this.switchSort(nextAgendaData.ID, currentOrderNum))
+                .then(function () {
+                    // console.log('working');
+                    // panelActive = _index + 1;
+                    reactHandler.RetrieveSPData(LISTNAMES.AGENDALIST);
+                });
+            }
+        }
     }
 
     DeleteItems(ListName, listitemID){
@@ -978,9 +1312,9 @@ class MeetingTracker extends React.Component{
         var reactHandler = this;
         var datastored = "";
         var ErrorMessage = "";
-        var month = $('.timeline').find('a.selected').data().date.slice($('.timeline').find('a.selected').data().date.indexOf('/') + 1,$('.timeline').find('a.selected').data().date.length - 5);
-        var year = $('.timeline').find('a.selected').data().date.slice($('.timeline').find('a.selected').data().date.length-4,$('.timeline').find('a.selected').data().date.length);
-        var date = $('.timeline').find('a.selected').data().date.slice(0,$('.timeline').find('a.selected').data().date.indexOf('/'));
+        var month = $('.timeline').find('a.selected').attr('data-date').slice($('.timeline').find('a.selected').attr('data-date').indexOf('/') + 1,$('.timeline').find('a.selected').attr('data-date').length - 5);
+        var year = $('.timeline').find('a.selected').attr('data-date').slice($('.timeline').find('a.selected').attr('data-date').length-4,$('.timeline').find('a.selected').attr('data-date').length);
+        var date = $('.timeline').find('a.selected').attr('data-date').slice(0,$('.timeline').find('a.selected').attr('data-date').indexOf('/'));
         var EventDate = ""+ month +"/"+ date +"/"+ year +"";
         var AgendaID = $('#agenda4ID').val();
         // Define the folder path for this example.
@@ -1156,6 +1490,87 @@ class MeetingTracker extends React.Component{
 
     }
 
+    reloadData = (_monthOptions) =>{
+        // var monthOption = _monthOptions.target == undefined ? _monthOptions[0].value : _monthOptions.target.value;
+        var reactHandler = this;
+        $('.timeline .events a').eq(0).click();
+        if(_monthOptions.target == undefined){
+            reactHandler.setState({
+                MONTHOPTIONS: _monthOptions,
+                SELECTEDYEAR: Number($('#year').val()),
+                SELECTEDMONTH: Number(_monthOptions[0].value),
+            });
+        }
+        else{
+            reactHandler.setState({
+                // MONTHOPTIONS: reactHandler.state.MONTHOPTIONS,
+                SELECTEDMONTH: Number(_monthOptions.target.value),
+            });
+        }
+    }
+
+    loadMonths = (_year) =>{
+        // $('#month').html('');
+        var reactHandler = this;
+        var monthDetails = [{value:0,month:"January"},{value:1,month:"February"},{value:2,month:"March"},{value:3,month:"April"},{value:4,month:"May"},{value:5,month:"June"},{value:6,month:"July"},{value:7,month:"August"},{value:8,month:"September"},{value:9,month:"October"},{value:10,month:"November"},{value:11,month:"December"}];
+        var selectedYear = _year.target == undefined ? _year : _year.target.value;
+        var monthOptions = [];
+        // if($('#month option').eq(0).length > 0){
+        //     $('#month').val($('#month option').eq(0)[0].value);
+        // }
+        if(STARTDATE.getMonth() == ENDDATE.getMonth() && STARTDATE.getFullYear() == ENDDATE.getFullYear()){
+            monthOptions = $.grep(monthDetails,function(value, index){ return value.value == STARTDATE.getMonth() });
+        }
+        else if(STARTDATE.getFullYear() == ENDDATE.getFullYear() && STARTDATE.getMonth() != ENDDATE.getMonth()){
+            monthOptions = [];
+            $.each(monthDetails,function(index,data){
+                monthOptions.push(data);
+                if(data.value == ENDDATE.getMonth()){
+                    return false;
+                }
+            });
+        }
+        else{
+            switch(selectedYear){
+                case STARTDATE.getFullYear().toString():
+                    var reverseMonthdetails = monthDetails.reverse();
+                    var reverseMonthoption = [];
+                    $.each(reverseMonthdetails,function(index,data){
+                        reverseMonthoption.push(data);
+                        if(data.value == STARTDATE.getMonth()){
+                            monthOptions = reverseMonthoption.reverse();
+                            return false;
+                        }
+                    });
+                    break;
+
+                case ENDDATE.getFullYear().toString():
+                    $.each(monthDetails,function(index,data){
+                        monthOptions.push(data);
+                        if(data.value == ENDDATE.getMonth()){
+                            return false;
+                        }
+                    });
+                    break;
+                
+                default:
+                    $.each(monthDetails,function(index,data){
+                        monthOptions.push(data);
+                    });
+                    break;
+                }
+        }
+        if(_year.target == undefined){
+            return monthOptions;
+        }
+        else{
+            // reactHandler.setState({
+            //     MONTHOPTIONS: monthOptions
+            // })
+            reactHandler.reloadData(monthOptions);
+        }
+    }
+
     render(){
         //debugger;
         var reactHandler = this;
@@ -1165,30 +1580,50 @@ class MeetingTracker extends React.Component{
                 display: 'none'
             }
         }
+        const timeline =  this.state.CALENDARITEMS.filter((item, key)=>{
+            return this.state.SELECTEDMONTH == new Date(item.EventDate).getMonth() && this.state.SELECTEDYEAR == new Date(item.EventDate).getFullYear();
+        }).map(function(item,key){  
+                var eventdate = "" + item.EventDate.getDate() + "/" + (item.EventDate.getMonth() + 1) + "/" + item.EventDate.getFullYear() +"";
+                if(key == 0)
+                {
+                    return (<li key={key}>
+                        <a href="#0" data-date={eventdate} className="selected">{eventdate}</a>
+                    </li>);  
+                }
+                else{
+                    return (<li key={key}>
+                        <a href="#0" data-date={eventdate}>{eventdate}</a>
+                    </li>);  
+                }
+
+        });
+
+        const eventContents = this.state.CALENDARITEMS.filter((item, key)=>{
+            return this.state.SELECTEDMONTH == new Date(item.EventDate).getMonth() && this.state.SELECTEDYEAR == new Date(item.EventDate).getFullYear();
+        }).map((item, key) => {
+            //debugger;
+            var eventdate = "" + item.EventDate.getDate() + "/" + (item.EventDate.getMonth() + 1) + "/" + item.EventDate.getFullYear() +"";
+            var classnames = "";
+            // var agendaEventDate = "" + this.state.agenda.Created.getDate() + "/" + (this.state.agenda.Created.getMonth() + 1) + "/" + this.state.agenda.Created.getFullYear() +"";
+            if(key == 0)
+            {
+                classnames = "Timelineli selected";
+            }
+            else{
+                classnames = "Timelineli hidecontent";
+            }
+            return (<li key={key} className={classnames} data-date={eventdate}>
+                <ContainerComponents count={key} agendaMoveUp={this.agendaMoveUp} agendaMoveDown={this.agendaMoveDown} AGENDADATA={this.state.AGENDADATA} ACTIONDATA={this.state.ACTIONDATA} ACTIONCOMMENTSDATA={this.state.ACTIONCOMMENTSDATA} MEETINGDOCUMENTSDATA={this.state.MEETINGDOCUMENTSDATA} LINKDATA={this.state.LINKDATA} eventdate={eventdate} DeleteItems={this.DeleteItems}/>
+            </li>);
+        })
+        
         return(
             <div className={classnames}>
                 <div className="timeline">
                     <div className="events-wrapper">
                         <div className="events">
                             <ol>
-                                {
-                                    this.state.CALENDARITEMS.map(function(item,key){  
-                                            var eventdate = "" + item.EventDate.getDate() + "/" + (item.EventDate.getMonth() + 1) + "/" + item.EventDate.getFullYear() +"";
-                                            MeetingDates.push(eventdate);
-                                            if(key == 0)
-                                            {
-                                                return (<li key={key}>
-                                                    <a href="#0" data-date={eventdate} className="selected">{eventdate}</a>
-                                                </li>);  
-                                            }
-                                            else{
-                                                return (<li key={key}>
-                                                    <a href="#0" data-date={eventdate}>{eventdate}</a>
-                                                </li>);  
-                                            }
-
-                                    })
-                                }
+                                {timeline}
                             </ol>
                             <span className="filling-line" aria-hidden="true"></span>
                         </div>
@@ -1296,28 +1731,65 @@ class MeetingTracker extends React.Component{
                             <span className="i-arrows-diagrams-arrows-arrow-rectangle-down icon"></span>
                             <span className="text">Expand All</span>
                         </div>
+                        <div className="item Filter-Month" title="Month">
+                            <span className="i-interface-essential-filter-filter-1 icon"></span>
+                            <span className="text">Month</span>
+                            <select value={this.state.SELECTEDMONTH} onChange={this.reloadData} id="month">
+                                {/* <option value="1">January</option>
+                                <option value="2">February</option>
+                                <option value="3">March</option>
+                                <option value="4">April</option>
+                                <option value="5">May</option>
+                                <option value="6">June</option>
+                                <option value="7">July</option>
+                                <option value="8">August</option>
+                                <option value="9">September</option>
+                                <option value="10">October</option>
+                                <option value="11">November</option>
+                                <option value="12">December</option> */}
+                                {/* {monthOptions} */}
+                                {
+                                    this.state.MONTHOPTIONS.map((item,key)=>{
+                                        // var temp = new Date();
+                                        // if(selectedDate.getMonth().toString() == item.value.toString()){
+                                        //     return( <option key={key} selected={true} value={item.value}>{item.month}</option> )
+                                        // }
+                                        // else{
+                                        //     return( <option key={key} value={item.value}>{item.month}</option> )
+                                        // }
+                                        return( <option key={key} value={item.value}>{item.month}</option> )
+                                    })
+                                }
+                            </select>
+                        </div>
+                        <div className="item Filter-Year" title="Year">
+                            <span className="i-interface-essential-filter-filter-1 icon"></span>
+                            <span className="text">Year</span>
+                            <select value={this.state.SELECTEDYEAR} onChange={this.loadMonths} id="year">
+                                {/* <option value="2015">2015</option>
+                                <option value="2016">2016</option>
+                                <option value="2017">2017</option>
+                                <option value="2018">2018</option> */}
+                                {/* {yearOptions} */}
+                                {
+                                    this.state.YEAROPTIONS.map((item,key)=>{
+                                        // var temp = new Date();
+                                        // if(selectedDate.getFullYear().toString() == item.toString()){
+                                        //     return( <option key={key} selected={true} value={item.toString()}>{item.toString()}</option> )
+                                        // }
+                                        // else{
+                                        //     return( <option key={key} value={item.toString()}>{item.toString()}</option> )
+                                        // }
+                                        return( <option key={key} value={item.toString()}>{item.toString()}</option> )
+                                    })
+                                }
+                            </select>
+                        </div>
                     </div>
                 </div>
                 <div className="events-content">
                     <ol>
-                        {
-                            this.state.CALENDARITEMS.map((item, key) => {
-                                //debugger;
-                                var eventdate = "" + item.EventDate.getDate() + "/" + (item.EventDate.getMonth() + 1) + "/" + item.EventDate.getFullYear() +"";
-                                var classnames = "";
-                                // var agendaEventDate = "" + this.state.agenda.Created.getDate() + "/" + (this.state.agenda.Created.getMonth() + 1) + "/" + this.state.agenda.Created.getFullYear() +"";
-                                if(key == 0)
-                                {
-                                    classnames = "Timelineli selected";
-                                }
-                                else{
-                                    classnames = "Timelineli hidecontent";
-                                }
-                                return (<li key={key} className={classnames} data-date={eventdate}>
-                                    <ContainerComponents count={key} AGENDADATA={this.state.AGENDADATA} ACTIONDATA={this.state.ACTIONDATA} ACTIONCOMMENTSDATA={this.state.ACTIONCOMMENTSDATA} MEETINGDOCUMENTSDATA={this.state.MEETINGDOCUMENTSDATA} LINKDATA={this.state.LINKDATA} eventdate={eventdate} DeleteItems={this.DeleteItems}/>
-                                </li>);
-                            })
-                        }
+                        {eventContents}
                     </ol>
                 </div>
                 <div>
@@ -1362,17 +1834,19 @@ class ComponentModalWindows extends React.Component{
     movetonextmeeting(e){
         if(e.target.value == "Move to Future Meeting"){
             $('#meetingDate').html('');
-            var month = $('.timeline').find('a.selected').data().date.slice($('.timeline').find('a.selected').data().date.indexOf('/') + 1,$('.timeline').find('a.selected').data().date.length - 5);
-            var year = $('.timeline').find('a.selected').data().date.slice($('.timeline').find('a.selected').data().date.length-4,$('.timeline').find('a.selected').data().date.length);
-            var date = $('.timeline').find('a.selected').data().date.slice(0,$('.timeline').find('a.selected').data().date.indexOf('/'));
+            var month = $('.timeline').find('a.selected').attr('data-date').slice($('.timeline').find('a.selected').attr('data-date').indexOf('/') + 1,$('.timeline').find('a.selected').attr('data-date').length - 5);
+            var year = $('.timeline').find('a.selected').attr('data-date').slice($('.timeline').find('a.selected').attr('data-date').length-4,$('.timeline').find('a.selected').attr('data-date').length);
+            var date = $('.timeline').find('a.selected').attr('data-date').slice(0,$('.timeline').find('a.selected').attr('data-date').indexOf('/'));
             var currentTimeline = ""+ month +"/"+ date +"/"+ year +"";
             var future_dates = $.grep(MeetingDates, function(value, index){ 
-                var month = value.slice(value.indexOf('/') + 1,value.length - 5);
-                var year = value.slice(value.length-4,value.length);
-                var date = value.slice(0,value.indexOf('/'));
-                var iterateTimeline = ""+ month +"/"+ date +"/"+ year +"";
+                // var month = value.slice(value.indexOf('/') + 1,value.length - 5);
+                // var year = value.slice(value.length-4,value.length);
+                // var date = value.slice(0,value.indexOf('/'));
+                var iterateTimeline = "" + (value.EventDate.getMonth() + 1) + "/" + value.EventDate.getDate() + "/" + value.EventDate.getFullYear() +"";
                 return (new Date(iterateTimeline) > new Date(currentTimeline)) });
             $.each(future_dates, function(index, value){
+
+                var eventdate = "" + value.EventDate.getDate() + "/" + (value.EventDate.getMonth() + 1) + "/" + value.EventDate.getFullYear() +"";
 
                 // var temp = new Date();
                 // var todaysDate = temp == null ? "" : "" + (new Date(temp).getMonth() + 1) + "/" + new Date(temp).getDate() + "/" + new Date(temp).getFullYear() +"";
@@ -1387,21 +1861,23 @@ class ComponentModalWindows extends React.Component{
                 // {
                 //     $('#meetingDate').append($("<option     />").val(value).text(value));
                 // }
-                $('#meetingDate').append($("<option     />").val(value).text(value));
+                $('#meetingDate').append($("<option     />").val(eventdate).text(eventdate));
             });
             this.setState({
                 meetingdateStyle: 'table-row'
             });
+            $('#meetingDate').parent().parent().css('display','table-row');
         }
         else{
             $('#meetingDate').html('');
             this.setState({
                 meetingdateStyle: 'none'
             });
+            $('#meetingDate').parent().parent().hide();
         }
     }
     constructor(props){  
-        super(props);  
+        super(props);
           this.state = {
                 meetingdateStyle: 'none'
             };
@@ -1463,13 +1939,13 @@ class ComponentModalWindows extends React.Component{
                                 </tr>
                                 <tr>
                                     <td>
-                                        <button id="Savebtn" type="button" text="Save" onClick={() => this.props.agenda(LISTNAMES.AGENDALIST)}>Save</button>
+                                        <button id="Savebtn1" type="button" text="Save" onClick={() => this.props.agenda(LISTNAMES.AGENDALIST)}>Save</button>
                                     </td>
                                     <td>
-                                        <button id="Closebtn" type="button" text="Close" onClick={this.props.closure}>Close</button>
+                                        <button id="Closebtn1" type="button" text="Close" onClick={this.props.closure}>Close</button>
                                     </td>
                                     <td>
-                                        <button id="Deletebtn" type="button" text="Delete" onClick={() => this.props.DeleteItems(LISTNAMES.AGENDALIST, 0)}>Delete</button>
+                                        <button id="Deletebtn1" type="button" text="Delete" onClick={() => this.props.DeleteItems(LISTNAMES.AGENDALIST, 0)}>Delete</button>
                                     </td>
                                 </tr>
                                 <tr>
@@ -1552,13 +2028,13 @@ class ComponentModalWindows extends React.Component{
                                 </tr> */}
                                 <tr>
                                     <td>
-                                        <button id="Savebtn" type="button" text="Save" onClick={() =>  this.props.agenda(LISTNAMES.ACTIONLIST)}>Save</button>
+                                        <button id="Savebtn2" type="button" text="Save" onClick={() =>  this.props.agenda(LISTNAMES.ACTIONLIST)}>Save</button>
                                     </td>
                                     <td>
-                                        <button id="Closebtn" type="button" text="Close" onClick={this.props.closure}>Close</button>
+                                        <button id="Closebtn2" type="button" text="Close" onClick={this.props.closure}>Close</button>
                                     </td>
                                     <td>
-                                        <button id="Deletebtn" type="button" text="Delete" onClick={() => this.props.DeleteItems(LISTNAMES.ACTIONLIST, 0)}>Delete</button>
+                                        <button id="Deletebtn2" type="button" text="Delete" onClick={() => this.props.DeleteItems(LISTNAMES.ACTIONLIST, 0)}>Delete</button>
                                     </td>
                                 </tr>
                                 <tr>
@@ -1595,10 +2071,10 @@ class ComponentModalWindows extends React.Component{
                                 </tr>
                                 <tr>
                                     <td>
-                                        <button id="Savebtn" type="button" text="Add" onClick={() => this.props.agenda(LISTNAMES.ACTIONCOMMENTSLIST)}>Add</button>
+                                        <button id="Savebtn3" type="button" text="Add" onClick={() => this.props.agenda(LISTNAMES.ACTIONCOMMENTSLIST)}>Add</button>
                                     </td>
                                     <td>
-                                        <button id="Closebtn" type="button" text="Close" onClick={this.props.closure}>Close</button>
+                                        <button id="Closebtn3" type="button" text="Close" onClick={this.props.closure}>Close</button>
                                     </td>
                                 </tr>
                                 <tr>
@@ -1630,10 +2106,10 @@ class ComponentModalWindows extends React.Component{
                                 </tr>
                                 <tr>
                                     <td>
-                                        <button id="Savebtn" type="button" text="Save" onClick={this.props.AddAttachment}>Upload</button>
+                                        <button id="Savebtn4" type="button" text="Save" onClick={this.props.AddAttachment}>Upload</button>
                                     </td>
                                     <td>
-                                        <button id="Closebtn" type="button" text="Close" onClick={this.props.closure}>Close</button>
+                                        <button id="Closebtn4" type="button" text="Close" onClick={this.props.closure}>Close</button>
                                     </td>
                                 </tr>
                                 <tr>
@@ -1658,7 +2134,7 @@ class ComponentModalWindows extends React.Component{
                                 <tbody>
                                     <tr className="hidecontent">
                                         <td colSpan="2">
-                                            <input id="agenda4ID" type="text"></input>
+                                            <input id="agenda5ID" type="text"></input>
                                         </td>
                                     </tr>
                                     <tr>
@@ -1679,10 +2155,10 @@ class ComponentModalWindows extends React.Component{
                                     </tr>
                                     <tr>
                                         <td>
-                                            <button id="Savebtn" type="button" text="Add" onClick={() => this.props.agenda(LISTNAMES.LINKLIST)}>Add</button>
+                                            <button id="Savebtn5" type="button" text="Add" onClick={() => this.props.agenda(LISTNAMES.LINKLIST)}>Add</button>
                                         </td>
                                         <td>
-                                            <button id="Closebtn" type="button" text="Close" onClick={this.props.closure}>Close</button>
+                                            <button id="Closebtn5" type="button" text="Close" onClick={this.props.closure}>Close</button>
                                         </td>
                                     </tr>
                                     <tr>
@@ -1759,7 +2235,7 @@ class AgendaLinkComponents extends React.Component{
         ItemData = $.grep(this.props.LINKDATA,function(value, index){ return value.ID == _linkItemID });
         $('#linkurl').val(ItemData[0].LinkURL.Url);
         $('#linktitle').val(ItemData[0].Title);
-        $('#agenda4ID').val(ItemData[0].AgendaID);
+        $('#agenda5ID').val(ItemData[0].AgendaID);
         $('#LinkForm').css('display','block');
     }
     render(){
@@ -1901,10 +2377,10 @@ class ActionComponent extends React.Component{
         // var isAdmin = $.grep(this.state.MEETINGADMINSDATA,function(value, index){ return value.AdminId ==  _spPageContextInfo.userId});
         // if(this.state.CALENDARDATA.AuthorId == _spPageContextInfo.userId || isAdmin.length > 0 || ItemData[0].AuthorId == _spPageContextInfo.userId){
         if(ISADMIN || ItemData[0].AuthorId == _spPageContextInfo.userId){
-            $('#ActionForm #Deletebtn').show();
+            $('#ActionForm #Deletebtn2').show();
         }
         else{
-            $('#ActionForm #Deletebtn').hide();
+            $('#ActionForm #Deletebtn2').hide();
         }
         $('#ActionForm').css('display','block');
     }
@@ -2005,9 +2481,9 @@ class ContainerComponents extends React.Component{
         $('#endDate').datepicker();
         $('#startDate').datepicker( "option", "dateFormat", "dd/mm/yy" );
         $('#endDate').datepicker( "option", "dateFormat", "dd/mm/yy" );
-        $('#startDate').datepicker("setDate", $('.timeline').find('a.selected').data().date);
-        $('#endDate').datepicker("setDate", $('.timeline').find('a.selected').data().date);
-        $('#ActionForm #Deletebtn').hide();
+        $('#startDate').datepicker("setDate", $('.timeline').find('a.selected').attr('data-date'));
+        $('#endDate').datepicker("setDate", $('.timeline').find('a.selected').attr('data-date'));
+        $('#ActionForm #Deletebtn2').hide();
         $('#ActionForm').css('display','block');
     }
     NewAttachmentForm(_agendaID, _index, _listGUID){
@@ -2020,7 +2496,7 @@ class ContainerComponents extends React.Component{
         // ItemData = $.grep(this.props.LINKDATA,function(value, index){ return value.ID == _linkItemID });
         // $('#linkurl').val(ItemData[0].LinkURL.Url);
         // $('#linktitle').val(ItemData[0].Title);
-        $('#agenda4ID').val(_agendaID);
+        $('#agenda5ID').val(_agendaID);
         $('#LinkForm').css('display','block');
     }
     EditAgendaDetails = (_agendaID, _index) => {
@@ -2033,17 +2509,17 @@ class ContainerComponents extends React.Component{
         // var isAdmin = $.grep(this.state.MEETINGADMINSDATA,function(value, index){ return value.AdminId ==  _spPageContextInfo.userId});
         // if(this.state.CALENDARDATA.AuthorId == _spPageContextInfo.userId || isAdmin.length > 0){
         if(ISADMIN){
-            $('#AgendaForm #Deletebtn').show();
+            $('#AgendaForm #Deletebtn1').show();
         }
         else{
-            $('#AgendaForm #Deletebtn').hide();
+            $('#AgendaForm #Deletebtn1').hide();
         }
         if(ItemData[0].CommonTitle){
-            $('#AgendaForm #Deletebtn').hide();
+            $('#AgendaForm #Deletebtn1').hide();
             $('#agendaStatus').parent().parent().hide();
         }
         $('#AgendaForm').css('display','block');
-    }
+    }   
     render(){
         const agendacontent = this.props.AGENDADATA
         .filter((item, key) => {
@@ -2100,19 +2576,19 @@ class ContainerComponents extends React.Component{
                                     Add Action
                                 </span>
                             </div>
-                            <div style={disabledClickevents} className="item" title="Add Note">
+                            {/* <div style={disabledClickevents} className="item" title="Add Note">
                                 <span className="icon i-design-design-process-design-draw"></span>
                                 <span className="text">
                                     Add Note
                                 </span>
-                            </div>
+                            </div> */}
                             <div style={disabledClickevents} className="item attachment-control" onClick={() => this.NewAttachmentForm(item.ID, key)}>
                                 <span className="icon i-interface-essential-link-unlink-hyperlink-3"></span>
                                 <span className="text">
                                     Add Attachment
                                 </span>
-                                <div className="realbutton">
-                                    {/* <form style="margin: 0;padding: 0;" enctype="multipart/form-data" method="post"
+                                {/* <div className="realbutton">
+                                    <form style="margin: 0;padding: 0;" enctype="multipart/form-data" method="post"
                                         action="/Meeting/Attachment/Upload" target="hiddenFrm">
                                         <input type="hidden" name="attachments.siteGuid" value="8c3d8736-5345-437a-90b9-1dc8f96950d6">
                                         <input type="hidden" name="attachments.agendaGuid" value="1431369e-8ead-b6b9-728a-8496bfe19bda">
@@ -2122,16 +2598,16 @@ class ContainerComponents extends React.Component{
                                         <input type="hidden" name="attachments.meetingTitle">
                                         <input type="hidden" name="attachments.meetingStartDate" value="1532539800000">
                                         <input name="files" type="file" multiple="multiple" title="Add Attachment">
-                                    </form> */}
-                                </div>
+                                    </form>
+                                </div> */}
                             </div>
-                            <div style={disabledClickevents} className="item" title="Add Decision">
+                            {/* <div style={disabledClickevents} className="item" title="Add Decision">
                                 <span className=" icon i-messages-chat-smileys-messages-speech-bubbles-messages-bubble-double-alternate">
                                 </span>
                                 <span className="text">
                                     Add Decision
                                 </span>
-                            </div>
+                            </div> */}
                             <div style={disabledClickevents} className="item" title="Add Link" onClick={() => {this.NewLinkForm(item.ID, key)}}>
                                 <span className="icon i-internet-networks-servers-worldwide-web-network-arrow"
                                 ></span>
@@ -2139,9 +2615,20 @@ class ContainerComponents extends React.Component{
                                     Add Link
                                 </span>
                             </div>
-                            <div style={deleteStyle} className="item agenda-edit-icon" title="Edit Agenda" onClick={() => {this.EditAgendaDetails(item.ID, key)}}>
-                                    <span className="icon i-interface-essential-setting-cog">
+                            <div className="item agenda-sort-icon">
+                                <div title="Move Up" onClick={() => {this.props.agendaMoveUp(item.ID, key)}}>
+                                    <span className="small-icon i-arrows-diagrams-arrows-arrow-button-up">
+                                        {/* <span className="nav-text">Move Up</span> */}
                                     </span>
+                                </div>
+                                <div title="Move Down" onClick={() => {this.props.agendaMoveDown(item.ID, key)}}>
+                                    <span className="small-icon i-arrows-diagrams-arrows-arrow-button-down">
+                                        {/* <span className="nav-text">Move Down</span> */}
+                                    </span>
+                                </div>
+                            </div>
+                            <div style={deleteStyle} className="item agenda-edit-icon" title="Edit Agenda">
+                                    <span onClick={() => {this.EditAgendaDetails(item.ID, key)}} className="icon i-interface-essential-setting-cog"></span>
                             </div>
                             <div className="agendatimer-desc" style={TimerStyle}>
                                 <span>Expected Duration: </span>
