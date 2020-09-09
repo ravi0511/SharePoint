@@ -150,7 +150,7 @@ function buttonclick(){
 
 
 //****************************************************************************************//
-// REST code for adding/uploading multiple attachments to library
+// REST code for adding/uploading multiple attachments to list item
 //****************************************************************************************//
 
 <input type="file" class="" multiple="multiple" name="files1" value="Add Attachment" id="file1" />
