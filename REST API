@@ -147,6 +147,158 @@ function getitemsFail(){
 function buttonclick(){
 	RestPostSearch();
 }
+
+
+//****************************************************************************************//
+// REST code for adding/uploading multiple attachments to library
+//****************************************************************************************//
+
+<input type="file" class="" multiple="multiple" name="files1" value="Add Attachment" id="file1" />
+
+    $('#file1').on('change',function(){
+      
+        var data = [];
+        var fileObj = [];
+        $("#files1 input:file").each(function () {
+            if ($(this)[0].files[0]) {
+              var commonfiles;
+              var flag = false;
+              $.each($(this)[0].files,function(index, value){
+                commonfiles = $.grep(AttachmentData,function(data){ return data.FileName == value.name });
+                if(commonfiles.length > 0){
+                  flag = true;
+                  false;
+                }
+              })
+              if(flag){
+                alert("The selected file already exists.");
+                $('#file1').val('');
+              }
+              else{
+                fileObj.push({ "Attachment": $(this)[0].files });
+                ShowWaitScreen();
+                uploadmultifiles(fileObj);
+              }
+            }
+        });
+    });
+    
+    
+  function uploadmultifiles(fileObj) {
+            var fileCountCheck = 0;
+            // var listName = "VendorCodeRequest";
+            var listName = "VendorCodeRequest";
+            var id = ItemID; //you can pass the ID dynamically
+            console.log("before if", fileCountCheck);
+            //fileObj ---->>> array of files
+            if (fileObj.length != 0) {
+                console.log("after if", fileObj.length);
+                console.log(fileCountCheck <= fileObj.length - 1);
+                if (fileCountCheck <= fileObj.length - 1) {
+                    console.log("before loopFileUpload", fileObj);
+                    loopFileUpload(listName, id, fileObj[0].Attachment, fileCountCheck).then(
+                        function () {
+                        },
+                        function (sender, args) {
+                            console.log("Error uploading");
+                            // dfd.reject(sender, args);
+                        }
+                    );
+                }
+            }
+            // else {
+            //     deferred.resolve(fileCountCheck);
+            // }
+        }
+
+        function loopFileUpload(listName, id, listValues, fileCountCheck) {
+            var dfd = $.Deferred();
+            console.log("loopFileUpload", listValues[fileCountCheck]);
+            console.log("getattachmet", listValues[fileCountCheck]);
+
+            uploadFile(listName, id, listValues[fileCountCheck]).then(
+                function (data) {
+
+                    fileCountCheck++;
+                        if (fileCountCheck <= listValues.length - 1) {
+                            loopFileUpload(listName, id, listValues, fileCountCheck);
+                        } else {
+                            console.log(fileCountCheck + ": Files uploaded");
+                            fetchExistingAttachments();
+                            $('#file1').val('');
+                            CloseWaitDialog();
+                        }
+
+                },
+                function (sender, args) {
+                    console.log("Not uploaded");
+                    dfd.reject(sender, args);
+                }
+            );
+            return dfd.promise();
+        }
+
+        function uploadFile(listName, id, file) {
+            var deferred = $.Deferred();
+            console.log("get file object", file);
+            if (file.name != window.undefined) {
+                var fileName = file.name; console.log(fileName);
+                console.log("filename", fileName);
+                getFileBuffer(file).then(
+                    function (buffer) {
+                        var bytes = new Uint8Array(buffer);
+                        var binary = '';
+                        for (var b = 0; b < bytes.length; b++) {
+                            binary += String.fromCharCode(bytes[b]);
+                        }
+                        var scriptbase = _spPageContextInfo.webServerRelativeUrl + "/_layouts/15/";
+                        console.log(' File size:' + bytes.length);
+                        $.getScript(scriptbase + "SP.RequestExecutor.js", function () {
+                            var createitem = new SP.RequestExecutor(_spPageContextInfo.webServerRelativeUrl);
+                            createitem.executeAsync({
+                                url: _spPageContextInfo.webServerRelativeUrl + "/_api/web/lists/GetByTitle('" + listName + "')/items(" + id + ")/AttachmentFiles/add(FileName='" + fileName + "')",
+                                method: "POST",
+                                binaryStringRequestBody: true,
+                                body: binary,
+                                success: fsucc,
+                                error: ferr,
+                                state: "Update"
+                            });
+                            function fsucc(data) {
+                                console.log(data + ' uploaded successfully');
+                                deferred.resolve(data);
+                            }
+                            function ferr(data) {
+                                console.log(fileName + "not uploaded error");
+                                deferred.reject(data);
+                            }
+                        });
+
+                    },
+                    function (err) {
+                        deferred.reject(err);
+                    }
+                );
+            }
+            else
+                deferred.resolve("");
+            return deferred.promise();
+        }
+
+        function getFileBuffer(file) {
+            var deferred = $.Deferred();
+            var reader = new FileReader();
+            reader.onload = function (e) {
+                deferred.resolve(e.target.result);
+            }
+            reader.onerror = function (e) {
+                deferred.reject(e.target.error);
+            }
+            reader.readAsArrayBuffer(file);
+            return deferred.promise();
+        }
+
+
 //****************************************************************************************//
 //REST code for search functionality by GET query method
 //****************************************************************************************//
