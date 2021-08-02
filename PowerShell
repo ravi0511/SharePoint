@@ -213,3 +213,35 @@ else
 
 $webApp = Get-SPWebApplication "http://ccadspa083:2222" 
 [Microsoft.SharePoint.Publishing.PublishingCache]::FlushBlobCache($webApp)
+
+
+
+***************************************************
+
+
+Add-PSSnapin Microsoft.SharePoint.Powershell -ea SilentlyContinue
+$web = get-spweb "https://stg-spcrm.nalco.com/sales/"
+$list = $web.lists["System Assurance"]
+$query = New-Object Microsoft.SharePoint.SPQuery
+
+# Added Code Start
+$createdOnInternalFieldName = 'Created'
+$caml = '<Where><Leq><FieldRef Name="{0}" /><Value Type="DateTime"><Today OffsetDays="-90" /></Value></Leq></Where>'-f $createdOnInternalFieldName
+$query.Query = $caml
+# Added Code End
+
+$query.ViewAttributes = "Scope='Recursive'"
+$query.RowLimit = 1000
+$query.ViewFields = "<FieldRef Name='ID'/>"
+$query.ViewFieldsOnly = $true
+do
+{
+    $listItems = $list.GetItems($query)
+    $query.ListItemCollectionPosition = $listItems.ListItemCollectionPosition
+    foreach($item in $listItems)
+    {
+        Write-Host "Deleting Item - $($item.Id)"
+        $list.GetItemById($item.Id).delete()
+    }
+}
+while ($query.ListItemCollectionPosition -ne $null)
