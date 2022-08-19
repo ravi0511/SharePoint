@@ -245,3 +245,161 @@ do
     }
 }
 while ($query.ListItemCollectionPosition -ne $null)
+
+
+********
+
+# This script loads the items from a list that contains one or more items that cause the CSOM to throw an exception.
+# Each item is loaded individually, ordered by ID
+# The script ends when SharePoint returns an error on a item, or when the last item of the list is successfully loaded.
+# There is also the possibility that the script will attempt to load the corrupted Item and SharePoint will return a null collection. In this case, this script will provide you the 
+
+#----------------------------------------
+#Variables specific to the environment
+
+#Full URL of the site 'https://mysitename.com/sites/mysc/'
+$url = 'https://connections.nalco.com/sites/Offerings/Services/Regulatory/'
+
+#GUID of the list containing the item(s) in error 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'
+$listID = 'f8d41281-c02f-44c3-9420-0051f20f12e5'
+
+#Fields to retrieve in the query that include the field in error "<ViewFields><FieldRef Name='ContentTypeId' />[...]</ViewFields>" (make sure to use ' instead of " in the string)
+$viewFields = "<ViewFields><FieldRef Name='ContentTypeId' /><FieldRef Name='FileLeafRef' /><FieldRef Name='HTML_x0020_File_x0020_Type' /><FieldRef Name='Title' /><FieldRef Name='xd_ProgID' /><FieldRef Name='RPDProductNumber' /><FieldRef Name='RPDDocumentType' /><FieldRef Name='RPDNextReviewDate' /><FieldRef Name='RPDRegion' /><FieldRef Name='RPDStatus' /><FieldRef Name='RPDDivision' /><FieldRef Name='_dlc_ExpireDate' /><FieldRef Name='RPD_x0020_Expiry_x0020_Date' /><FieldRef Name='RPD30DaysPriorExpiryDate' /><FieldRef Name='ValidInText' /><FieldRef Name='LanguageText' /><FieldRef Name='ApprovalTypeTxt' /><FieldRef Name='Languages' /><FieldRef Name='P_LANGU' /><FieldRef Name='Spin' /><FieldRef Name='Migration_x0020_Status' /><FieldRef Name='ID' /><FieldRef Name='Created' /><FieldRef Name='Modified' /><FieldRef Name='Editor' /><FieldRef Name='_CopySource' /><FieldRef Name='CheckoutUser' /><FieldRef Name='ScopeId' /><FieldRef Name='_UIVersionString' /><FieldRef Name='Order' /><FieldRef Name='FileRef' /><FieldRef Name='FSObjType' /><FieldRef Name='_UIVersion' /><FieldRef Name='owshiddenversion' /><FieldRef Name='File_x0020_Size' /><FieldRef Name='IsCheckedoutToLocal' /><FieldRef Name='AverageRating' /><FieldRef Name='RPDDocumentOwners' /><FieldRef Name='RPDCategory' /><FieldRef Name='RPDPAC' /><FieldRef Name='RPDSubPac' /><FieldRef Name='ValidIn' /><FieldRef Name='Language' /><FieldRef Name='ApprovalType' /></ViewFields>"
+
+#Folder containing the item (optional) '/sites/SiteCollectionName/[...]/FolderPath/'
+$folderRelativeUrl = '/sites/Offerings/Services/Regulatory/Regulatory/'
+#-----------------------------------------
+
+#----------------------------------------
+#Tries to import the SharePoint dll
+$dll = 'Microsoft.SharePoint.Client.dll'
+
+#Location of SharePoint Client dll
+$currentUser = "$env:LOCALAPPDATA\Apps\Sharegate\"
+$allUsers = "${env:ProgramFiles(x86)}\Sharegate\"
+$sp2010 = "$env:CommonProgramFiles\Microsoft Shared\Web Server Extensions\14\ISAPI\"
+$sp2013 = "$env:CommonProgramFiles\Microsoft Shared\Web Server Extensions\15\ISAPI\"
+$sp2016 = "$env:CommonProgramFiles\Microsoft Shared\Web Server Extensions\16\ISAPI\"
+
+if (Test-Path -Path $currentUser)
+{
+	$modulePath = $currentUser
+}elseif (Test-Path -Path $allUsers)
+{
+	$modulePath = $allUsers
+}elseif (Test-Path -Path $sp2010)
+{
+	$modulePath = $sp2010
+}elseif (Test-Path -Path $sp2013)
+{
+	$modulePath = $sp2013
+}else
+{
+	$modulePath = $sp2016
+}
+
+Import-Module "$modulePath$dll"
+#----------------------------------------
+
+#The following method is to overload the ClientContext with a PSClientContext to avoid errors calling Load which is a generic method that is not supported with PS v2 and v3
+function AddPSClientContext(){
+
+     #Load SharePoint client dlls
+     $a = [System.Reflection.Assembly]::LoadFile(    "$modulePath\Microsoft.SharePoint.Client.dll")
+     $ar = [System.Reflection.Assembly]::LoadFile(    "$modulePath\Microsoft.SharePoint.Client.Runtime.dll")
+    
+     if( !$a ){
+         $a = [System.Reflection.Assembly]::LoadWithPartialName(        "Microsoft.SharePoint.Client")
+     }
+     if( !$ar ){
+         $ar = [System.Reflection.Assembly]::LoadWithPartialName(        "Microsoft.SharePoint.Client.Runtime")
+     }
+    
+     if( !$a -or !$ar ){
+         throw         "Could not load Microsoft.SharePoint.Client.dll or Microsoft.SharePoint.Client.Runtime.dll"
+     }
+	 
+	 #Add overload to the client context.
+     #Define new load method without type argument
+     $csharp =     "
+      using Microsoft.SharePoint.Client;
+      namespace SharepointClient
+      {
+          public class PSClientContext: ClientContext
+          {
+              public PSClientContext(string siteUrl)
+                  : base(siteUrl)
+              {
+              }
+              // need a plain Load method here, the base method is a generic method
+              // which isn't supported in PowerShell v2 and v3.
+              public void Load(ClientObject objectToLoad)
+              {
+                  base.Load(objectToLoad);
+              }
+          }
+      }"
+    
+     $assemblies = @( $a.FullName, $ar.FullName,     "System.Core")
+     #Add dynamic type to the PowerShell runspace
+     Add-Type -TypeDefinition $csharp -ReferencedAssemblies $assemblies
+}
+
+AddPSClientContext
+
+#----------------------------------------
+
+#Context setup and first execute of query to retrieve the first list item
+$context = New-Object SharepointClient.PSClientContext($url)
+$list = $context.web.Lists.GetById($listID)
+$context.Load($list)
+$context.ExecuteQuery()
+$camlQuery = New-Object Microsoft.SharePoint.Client.CamlQuery
+if ($folderRelativeUrl -ne $null)
+{
+	$camlQuery.FolderServerRelativeUrl = $folderRelativeUrl
+}
+$camlQuery.ViewXml = "<View Scope='Default'><Query><OrderBy Override='TRUE'><FieldRef Name='ID' /></OrderBy></Query>$viewFields<RowLimit>1</RowLimit></View>"
+
+#Loads the items one at a time and breaks when an item is in error
+$lastItem = "none"
+
+do
+{
+	$listItems = $list.GetItems($camlQuery)
+	$context.load($listItems)
+	
+	Try
+	{
+		$context.ExecuteQuery()
+	}
+	Catch
+	{
+		#The query to retrieve the item caused an error. We cannot know what the next position will be, so we break and end the script.
+		"An error was encountered while trying to retrieve the item."
+		break
+	}
+
+    if($null -ne $listItems -and $listItems.Count -gt 0)
+    {
+	    #Retrieves information about the last item loaded
+	    $lastItem = "$($listItems[0]['Title']) ID: $($listItems[0].ID)"
+	
+	    $camlQuery.ListItemCollectionPosition = $listItems.ListItemCollectionPosition		
+    }
+    else
+    {
+        #The query to retrieve the item at position $listItems.ListItemCollectionPosition didn't succeed and returned null. 
+        "We were unable to fetch the list item at position " + $camlQuery.ListItemCollectionPosition
+        break;
+    }
+}
+while ($listItems.ListItemCollectionPosition -ne $null)
+
+#End of script. Display the last item that was successfully loaded
+"Last readable item is $lastItem"
+"Script completed"
+Read-Host -Prompt "Press Enter to exit."
+
+
+************
