@@ -403,3 +403,43 @@ Read-Host -Prompt "Press Enter to exit."
 
 
 ************
+
+Loop through sp2010 site collection and export subsite data
+**********
+
+
+
+function GetAllWebs($url)
+{
+    try
+    {
+        $counter = 1
+        $w = Get-SPWeb $url;
+        Write-Host ([String]::Format("Procesing web {0}",$w.Url)) -foregroundcolor Blue
+        if($w.Webs.Count -gt 0)
+        {
+            foreach($web in $w.Webs)
+            {
+                $web.Url
+                $Account = $web.Url.split('/')[5]
+			$Account
+			#Export-SPWeb $web.Url -Path "C:\Test\$Account"
+                GetAllWebs $web.Url;
+			$counter++
+			$counter
+			if($counter -ge 10){
+				#break
+			}
+            }
+        }
+    }
+    catch
+    {
+        Write-Host ([String]::Format("Error processing web at $url, with Exception: {0}", $_.Exception.Message)) -foregroundcolor Red
+    }   
+}
+
+
+
+$Site = "https://spcrm.nalco.com/salesaccounts/CMV1"
+GetAllWebs($Site)
